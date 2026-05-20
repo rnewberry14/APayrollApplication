@@ -70,12 +70,13 @@ public class CompanyService
     }
 
     /// <summary>
-    /// Masks a FEIN for display purposes. Shows only first 2 digits and last 4 digits.
+    /// Masks a FEIN for display purposes. Shows only first 2 digits and next 2 digits.
     /// Format: XX-XX-****
     /// Example: 12-3456789 -> 12-34-****
+    /// SENSITIVE: FEIN is sensitive data and should never be logged or exposed unnecessarily.
     /// </summary>
-    /// <param name="fein">The unmasked FEIN (9 digits)</param>
-    /// <returns>Masked FEIN string</returns>
+    /// <param name="fein">The unmasked FEIN (9-10 digits)</param>
+    /// <returns>Masked FEIN string in format XX-XX-****</returns>
     public static string MaskFEIN(string? fein)
     {
         if (string.IsNullOrEmpty(fein))
@@ -85,7 +86,7 @@ public class CompanyService
         if (digits.Length < 5)
             return "XX-XX-****";
 
-        // Show first 4 digits, mask the rest
+        // Show first 2 digits, next 2 digits, mask the rest
         return $"{digits.Substring(0, 2)}-{digits.Substring(2, 2)}-****";
     }
 }
