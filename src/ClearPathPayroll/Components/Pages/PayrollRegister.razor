@@ -1,0 +1,181 @@
+@page "/reports/payroll-register"
+@using ClearPathPayroll.Domain
+@using ClearPathPayroll.Services
+@inject PayrollRegisterService PayrollRegisterService
+
+<PageTitle>Payroll Register</PageTitle>
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1>Payroll Register</h1>
+            <p class="text-muted">Filter payroll runs by company and pay date range, then review employee-level payroll totals.</p>
+        </div>
+        <div>
+            <a class="btn btn-outline-secondary me-2" href="/">Back to home</a>
+            @if (string.IsNullOrEmpty(csvDownloadUri))
+            {
+                <button class="btn btn-primary" disabled>Export CSV</button>
+            }
+            else
+            {
+                <a class="btn btn-primary" href="@csvDownloadUri" download="PayrollRegister.csv">Export CSV</a>
+            }
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Report filters</h5>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Company</label>
+                    <select class="form-select" @bind="selectedCompanyId">
+                        <option value="">All companies</option>
+                        @foreach (var company in companies)
+                        {
+                            <option value="@company.CompanyId">@company.LegalName</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Pay date from</label>
+                    <input class="form-control" type="date" @bind="startDate" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Pay date to</label>
+                    <input class="form-control" type="date" @bind="endDate" />
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="btn btn-primary w-100" @onclick="LoadReportAsync">Refresh</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border" role="status"></div>
+            <p class="mt-3">Loading payroll register...</p>
+        </div>
+    }
+    else if (report == null || !report.Runs.Any())
+    {
+        <div class="alert alert-info">No payroll runs found for the selected filters.</div>
+    }
+    else
+    {
+        <div class="mb-3">
+            <strong>Company:</strong> @report.CompanyName<br />
+            <strong>Pay date range:</strong> @(report.PayDateStart?.ToString("MM/dd/yyyy") ?? "Any") - @(report.PayDateEnd?.ToString("MM/dd/yyyy") ?? "Any")
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Run ID</th>
+                        <th>Company</th>
+                        <th>Pay Date</th>
+                        <th>Pay Period</th>
+                        <th>Status</th>
+                        <th>Employee</th>
+                        <th>Gross</th>
+                        <th>Emp Taxes</th>
+                        <th>Emp Taxes (run)</th>
+                        <th>Deductions</th>
+                        <th>Net</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var run in report.Runs)
+                    {
+                        if (run.EmployeeSummaries.Any())
+                        {
+                            foreach (var employee in run.EmployeeSummaries)
+                            {
+                                <tr>
+                                    <td>@run.PayrollRunId</td>
+                                    <td>@run.CompanyName</td>
+                                    <td>@run.PayDate.ToString("MM/dd/yyyy")</td>
+                                    <td>@run.PayPeriodStart.ToString("MM/dd/yyyy") - @run.PayPeriodEnd.ToString("MM/dd/yyyy")</td>
+                                    <td>@run.Status</td>
+                                    <td>@employee.EmployeeName</td>
+                                    <td>@employee.GrossPay.ToString("C")</td>
+                                    <td>@employee.TotalTaxes.ToString("C")</td>
+                                    <td>@run.TotalEmployerTaxes.ToString("C")</td>
+                                    <td>@employee.TotalDeductions.ToString("C")</td>
+                                    <td>@employee.NetPay.ToString("C")</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td>@run.PayrollRunId</td>
+                                <td>@run.CompanyName</td>
+                                <td>@run.PayDate.ToString("MM/dd/yyyy")</td>
+                                <td>@run.PayPeriodStart.ToString("MM/dd/yyyy") - @run.PayPeriodEnd.ToString("MM/dd/yyyy")</td>
+                                <td>@run.Status</td>
+                                <td><em>No employee data</em></td>
+                                <td>@run.TotalGrossPay.ToString("C")</td>
+                                <td>@run.TotalEmployeeTaxes.ToString("C")</td>
+                                <td>@run.TotalEmployerTaxes.ToString("C")</td>
+                                <td>@run.TotalDeductions.ToString("C")</td>
+                                <td>@run.TotalNetPay.ToString("C")</td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+                <tfoot class="table-secondary">
+                    <tr>
+                        <th colspan="6">Totals</th>
+                        <th>@report.TotalGrossWages.ToString("C")</th>
+                        <th>@report.TotalEmployeeTaxes.ToString("C")</th>
+                        <th>@report.TotalEmployerTaxes.ToString("C")</th>
+                        <th>@report.TotalDeductions.ToString("C")</th>
+                        <th>@report.TotalNetPay.ToString("C")</th>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    }
+</div>
+
+@code {
+    private bool isLoading;
+    private PayrollRegisterModel? report;
+    private List<Company> companies = new();
+    private int? selectedCompanyId;
+    private DateTime? startDate = DateTime.Today.AddDays(-30);
+    private DateTime? endDate = DateTime.Today;
+    private string csvDownloadUri = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        companies = await PayrollRegisterService.GetAvailableCompaniesAsync();
+        await LoadReportAsync();
+    }
+
+    private async Task LoadReportAsync()
+    {
+        isLoading = true;
+        report = await PayrollRegisterService.GetPayrollRegisterAsync(selectedCompanyId, startDate, endDate);
+        csvDownloadUri = BuildCsvUri(report);
+        isLoading = false;
+    }
+
+    private string BuildCsvUri(PayrollRegisterModel reportModel)
+    {
+        if (reportModel == null || reportModel.Runs == null || !reportModel.Runs.Any())
+        {
+            return string.Empty;
+        }
+
+        var csv = PayrollRegisterService.BuildPayrollRegisterCsv(reportModel);
+        var bytes = System.Text.Encoding.UTF8.GetBytes(csv);
+        var base64 = Convert.ToBase64String(bytes);
+        return $"data:text/csv;base64,{base64}";
+    }
+}

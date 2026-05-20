@@ -36,6 +36,26 @@ build_metadata.AdditionalFiles.CssScope =
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xIb21lLnJhem9y
 build_metadata.AdditionalFiles.CssScope = 
 
+[D:/Richard/Git Repos/ClearPathPayroll/src/ClearPathPayroll/Components/Pages/PayrollPreview.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xQYXlyb2xsUHJldmlldy5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[D:/Richard/Git Repos/ClearPathPayroll/src/ClearPathPayroll/Components/Pages/PayrollRegister.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xQYXlyb2xsUmVnaXN0ZXIucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[D:/Richard/Git Repos/ClearPathPayroll/src/ClearPathPayroll/Components/Pages/PayStub.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xQYXlTdHViLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[D:/Richard/Git Repos/ClearPathPayroll/src/ClearPathPayroll/Components/Pages/SeedDemoData.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xTZWVkRGVtb0RhdGEucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[D:/Richard/Git Repos/ClearPathPayroll/src/ClearPathPayroll/Components/Pages/TaxLiabilityReport.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xUYXhMaWFiaWxpdHlSZXBvcnQucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
 [D:/Richard/Git Repos/ClearPathPayroll/src/ClearPathPayroll/Components/Pages/Weather.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xXZWF0aGVyLnJhem9y
 build_metadata.AdditionalFiles.CssScope = 

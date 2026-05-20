@@ -212,3 +212,7 @@ D:\Richard\Git Repos\ClearPathPayroll\tests\ClearPathPayroll.Tests\obj\Debug\net
 D:\Richard\Git Repos\ClearPathPayroll\tests\ClearPathPayroll.Tests\obj\Debug\net8.0\ClearPathPayroll.Tests.genruntimeconfig.cache
 D:\Richard\Git Repos\ClearPathPayroll\tests\ClearPathPayroll.Tests\obj\Debug\net8.0\ref\ClearPathPayroll.Tests.dll
 D:\Richard\Git Repos\ClearPathPayroll\tests\ClearPathPayroll.Tests\bin\Debug\net8.0\Microsoft.EntityFrameworkCore.InMemory.dll
+D:\Richard\Git Repos\ClearPathPayroll\tests\ClearPathPayroll.Tests\bin\Debug\net8.0\appsettings.Staging.json
+D:\Richard\Git Repos\ClearPathPayroll\tests\ClearPathPayroll.Tests\bin\Debug\net8.0\Azure.Extensions.AspNetCore.Configuration.Secrets.dll
+D:\Richard\Git Repos\ClearPathPayroll\tests\ClearPathPayroll.Tests\bin\Debug\net8.0\Azure.Security.KeyVault.Secrets.dll
+D:\Richard\Git Repos\ClearPathPayroll\tests\ClearPathPayroll.Tests\bin\Debug\net8.0\System.ClientModel.dll

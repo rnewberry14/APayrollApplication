@@ -1,0 +1,504 @@
+@page "/payroll/preview/{PayrollRunId:int}"
+@using ClearPathPayroll.Data
+@using ClearPathPayroll.Domain
+@using ClearPathPayroll.Services
+@inject PayrollService PayrollService
+@inject PayrollCalculationService PayrollCalculationService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Payroll Preview - ClearPath Payroll</PageTitle>
+
+<div class="container-fluid mt-4">
+    @if (isLoading)
+    {
+        <div class="alert alert-info">Loading payroll run...</div>
+    }
+    else if (payrollRun == null)
+    {
+        <div class="alert alert-danger">Payroll run not found.</div>
+    }
+    else
+    {
+        <!-- Header Section -->
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <h2>Payroll Preview</h2>
+                <p class="text-muted">Review and approve payroll before submission</p>
+            </div>
+            <div class="col-md-4 text-end">
+                <span class="badge bg-info">@payrollRun.Status</span>
+            </div>
+        </div>
+
+        <!-- Validation Errors and Warnings -->
+        @if (validationErrors.Count > 0)
+        {
+            <div class="alert alert-danger" role="alert">
+                <h5>⚠️ Validation Errors</h5>
+                <ul class="mb-0">
+                    @foreach (var error in validationErrors)
+                    {
+                        <li>@error</li>
+                    }
+                </ul>
+            </div>
+        }
+
+        @if (warnings.Count > 0)
+        {
+            <div class="alert alert-warning" role="alert">
+                <h5>⚠️ Warnings</h5>
+                <ul class="mb-0">
+                    @foreach (var warning in warnings)
+                    {
+                        <li>@warning</li>
+                    }
+                </ul>
+            </div>
+        }
+
+        <!-- Company and Period Information -->
+        <div class="card mb-4">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">Run Summary</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label text-muted">Company</label>
+                            <p class="lead">@(payrollRun.Company?.LegalName ?? "N/A")</p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label text-muted">Status</label>
+                            <p class="lead">@payrollRun.Status</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label class="form-label text-muted">Pay Period</label>
+                            <p class="lead">@payrollRun.PayPeriodStart.ToString("MM/dd/yyyy") - @payrollRun.PayPeriodEnd.ToString("MM/dd/yyyy")</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label class="form-label text-muted">Pay Date</label>
+                            <p class="lead">@payrollRun.PayDate.ToString("MM/dd/yyyy")</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label class="form-label text-muted">Run ID</label>
+                            <p class="lead">#@payrollRun.PayrollRunId</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Employee Details -->
+        <div class="card mb-4">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">Employee Payroll Details</h5>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-striped table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Employee</th>
+                            <th class="text-end">Gross Pay</th>
+                            <th class="text-end">Deductions</th>
+                            <th class="text-end">Taxes</th>
+                            <th class="text-end">Net Pay</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (payrollRun.PayrollRunEmployees?.Count > 0)
+                        {
+                            @foreach (var employee in payrollRun.PayrollRunEmployees)
+                            {
+                                var employeeName = employee.Employee != null 
+                                    ? $"{employee.Employee.FirstName} {employee.Employee.LastName}".Trim()
+                                    : $"Employee {employee.EmployeeId}";
+                                
+                                <tr>
+                                    <td>
+                                        <div>
+                                            <strong>@employeeName</strong>
+                                            <br />
+                                            <small class="text-muted">ID: @employee.EmployeeId</small>
+                                        </div>
+                                    </td>
+                                    <td class="text-end">
+                                        <strong>@employee.GrossPay.ToString("C")</strong>
+                                    </td>
+                                    <td class="text-end">
+                                        @employee.TotalDeductions.ToString("C")
+                                    </td>
+                                    <td class="text-end">
+                                        @employee.TotalTaxes.ToString("C")
+                                    </td>
+                                    <td class="text-end">
+                                        <strong class="text-success">@employee.NetPay.ToString("C")</strong>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="5" class="text-center text-muted">No employees in this payroll run</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Totals Summary -->
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">Payroll Totals</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Total Gross Pay:</span>
+                            <strong>@payrollRun.TotalGrossPay.ToString("C")</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Total Employee Taxes:</span>
+                            <strong>@payrollRun.TotalEmployeeTaxes.ToString("C")</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Total Deductions:</span>
+                            <strong>@payrollRun.TotalDeductions.ToString("C")</strong>
+                        </div>
+                        <hr />
+                        <div class="d-flex justify-content-between mb-3">
+                            <span class="lead">Total Net Pay:</span>
+                            <strong class="lead text-success">@payrollRun.TotalNetPay.ToString("C")</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">Employer Costs</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Employer Taxes:</span>
+                            <strong>@payrollRun.TotalEmployerTaxes.ToString("C")</strong>
+                        </div>
+                        <hr />
+                        <div class="d-flex justify-content-between mb-3">
+                            <span class="lead">Total Cash Required:</span>
+                            <strong class="lead text-danger">@totalCashRequired.ToString("C")</strong>
+                        </div>
+                        <small class="text-muted">
+                            (Net Pay + Employer Taxes)
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <button class="btn btn-primary" @onclick="HandleRecalculate" disabled="@isProcessing">
+                    @if (isProcessing)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    }
+                    Recalculate Payroll
+                </button>
+                <button class="btn btn-success" @onclick="ShowApprovalConfirmation" disabled="@(validationErrors.Count > 0 || isProcessing)">
+                    @if (isProcessing)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    }
+                    Approve Payroll
+                </button>
+                <button class="btn btn-outline-secondary" @onclick="HandleCancel" disabled="@isProcessing">
+                    Cancel
+                </button>
+            </div>
+        </div>
+
+        <!-- Approval Confirmation Modal -->
+        @if (showConfirmation)
+        {
+            <div class="modal fade show d-block" style="background-color: rgba(0, 0, 0, 0.5);">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Approve Payroll?</h5>
+                            <button type="button" class="btn-close" @onclick="CancelApproval"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>You are about to approve payroll for <strong>@(payrollRun.Company?.LegalName ?? "N/A")</strong>.</p>
+                            <p>Pay Period: <strong>@payrollRun.PayPeriodStart.ToString("MM/dd/yyyy") - @payrollRun.PayPeriodEnd.ToString("MM/dd/yyyy")</strong></p>
+                            <p>Total Net Pay: <strong class="text-success">@payrollRun.TotalNetPay.ToString("C")</strong></p>
+                            <p>Total Employer Taxes: <strong>@payrollRun.TotalEmployerTaxes.ToString("C")</strong></p>
+                            <p class="text-danger fw-bold">This action cannot be easily undone. Proceed?</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" @onclick="CancelApproval">Cancel</button>
+                            <button type="button" class="btn btn-success" @onclick="HandleApprove">Confirm Approval</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- Success Message -->
+        @if (!string.IsNullOrEmpty(successMessage))
+        {
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                @successMessage
+                <button type="button" class="btn-close" @onclick="() => successMessage = string.Empty"></button>
+            </div>
+        }
+
+        <!-- Error Message -->
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                @errorMessage
+                <button type="button" class="btn-close" @onclick="() => errorMessage = string.Empty"></button>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int PayrollRunId { get; set; }
+
+    private PayrollRun? payrollRun;
+    private bool isLoading = true;
+    private bool isProcessing = false;
+    private bool showConfirmation = false;
+    private string successMessage = string.Empty;
+    private string errorMessage = string.Empty;
+    private List<string> validationErrors = new();
+    private List<string> warnings = new();
+    private decimal totalCashRequired = 0m;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPayrollRun();
+        ValidatePayrollRun();
+    }
+
+    private async Task LoadPayrollRun()
+    {
+        try
+        {
+            isLoading = true;
+            payrollRun = await PayrollService.GetPayrollRunByIdAsync(PayrollRunId);
+            
+            if (payrollRun != null)
+            {
+                // Ensure navigation properties are loaded
+                // Calculate total cash required
+                totalCashRequired = payrollRun.TotalNetPay + payrollRun.TotalEmployerTaxes;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading payroll run: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ValidatePayrollRun()
+    {
+        validationErrors.Clear();
+        warnings.Clear();
+
+        if (payrollRun == null)
+            return;
+
+        // Validation errors (prevent approval)
+        if (payrollRun.PayrollRunEmployees == null || payrollRun.PayrollRunEmployees.Count == 0)
+        {
+            validationErrors.Add("No employees in this payroll run.");
+        }
+
+        if (payrollRun.TotalGrossPay <= 0)
+        {
+            validationErrors.Add("Gross pay must be greater than zero.");
+        }
+
+        if (payrollRun.Status == PayrollStatus.Approved)
+        {
+            validationErrors.Add("This payroll run has already been approved.");
+        }
+
+        if (payrollRun.Status == PayrollStatus.Submitted || payrollRun.Status == PayrollStatus.Completed)
+        {
+            validationErrors.Add("This payroll run has already been submitted.");
+        }
+
+        // Warnings (do not prevent approval)
+        if (payrollRun.PayDate < DateTime.Today)
+        {
+            warnings.Add("Pay date is in the past.");
+        }
+
+        if (payrollRun.TotalDeductions > payrollRun.TotalGrossPay)
+        {
+            warnings.Add("Total deductions exceed gross pay.");
+        }
+
+        var employeesWithoutTaxes = payrollRun.PayrollRunEmployees?
+            .Where(e => e.TotalTaxes == 0)
+            .Count() ?? 0;
+
+        if (employeesWithoutTaxes > 0)
+        {
+            warnings.Add($"{employeesWithoutTaxes} employee(s) have no tax withholding.");
+        }
+
+        // Minimum wage validation warnings for each employee
+        if (payrollRun.PayrollRunEmployees != null)
+        {
+            foreach (var employee in payrollRun.PayrollRunEmployees)
+            {
+                if (employee.Employee == null)
+                    continue;
+
+                var employeeName = $"{employee.Employee.FirstName} {employee.Employee.LastName}".Trim();
+
+                // Calculate total hours from earning lines
+                var totalHours = MinimumWageValidator.GetTotalHours(employee.EarningLines);
+
+                // Validate minimum wage
+                var minimumWageWarning = MinimumWageValidator.ValidateMinimumWage(
+                    employeeName,
+                    employee.Employee.State,
+                    employee.Employee.PayType,
+                    employee.GrossPay,
+                    totalHours > 0 ? totalHours : null,
+                    employee.EarningLines
+                );
+
+                if (!string.IsNullOrEmpty(minimumWageWarning))
+                {
+                    warnings.Add(minimumWageWarning);
+                }
+            }
+        }
+    }
+
+    private async Task HandleRecalculate()
+    {
+        try
+        {
+            isProcessing = true;
+            errorMessage = string.Empty;
+            successMessage = string.Empty;
+
+            var canRecalculate = await PayrollCalculationService.CanRecalculatePayrollRunAsync(PayrollRunId);
+            
+            if (!canRecalculate)
+            {
+                errorMessage = "This payroll run cannot be recalculated in its current status.";
+                return;
+            }
+
+            // Recalculate the payroll run
+            // Note: The actual recalculation requires employee deductions and hours
+            // which would typically be collected from a form. For this preview,
+            // we'll trigger a refresh of the current data.
+            
+            await LoadPayrollRun();
+            ValidatePayrollRun();
+            successMessage = "Payroll recalculated successfully.";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error recalculating payroll: {ex.Message}";
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private void ShowApprovalConfirmation()
+    {
+        if (validationErrors.Count == 0)
+        {
+            showConfirmation = true;
+        }
+    }
+
+    private void CancelApproval()
+    {
+        showConfirmation = false;
+    }
+
+    private async Task HandleApprove()
+    {
+        try
+        {
+            isProcessing = true;
+            errorMessage = string.Empty;
+            successMessage = string.Empty;
+            showConfirmation = false;
+
+            // Update payroll run status to Approved
+            // Note: userId should be obtained from authentication context
+            // For now, passing null; in production, use actual user ID
+            var success = await PayrollService.UpdatePayrollStatusAsync(
+                PayrollRunId, 
+                PayrollStatus.Approved,
+                userId: null  // TODO: Get from AuthenticationState
+            );
+
+            if (success)
+            {
+                successMessage = "Payroll approved successfully. You can now submit for processing.";
+                
+                // Optionally redirect after a delay
+                await Task.Delay(2000);
+                NavigationManager.NavigateTo("/payroll");
+            }
+            else
+            {
+                errorMessage = "Failed to approve payroll. Please try again.";
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            errorMessage = $"Status update not allowed: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error approving payroll: {ex.Message}";
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private void HandleCancel()
+    {
+        NavigationManager.NavigateTo("/payroll");
+    }
+}

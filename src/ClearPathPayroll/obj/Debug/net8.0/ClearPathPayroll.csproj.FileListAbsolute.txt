@@ -135,3 +135,7 @@ D:\Richard\Git Repos\ClearPathPayroll\src\ClearPathPayroll\obj\Debug\net8.0\refi
 D:\Richard\Git Repos\ClearPathPayroll\src\ClearPathPayroll\obj\Debug\net8.0\ClearPathPayroll.pdb
 D:\Richard\Git Repos\ClearPathPayroll\src\ClearPathPayroll\obj\Debug\net8.0\ClearPathPayroll.genruntimeconfig.cache
 D:\Richard\Git Repos\ClearPathPayroll\src\ClearPathPayroll\obj\Debug\net8.0\ref\ClearPathPayroll.dll
+D:\Richard\Git Repos\ClearPathPayroll\src\ClearPathPayroll\bin\Debug\net8.0\appsettings.Staging.json
+D:\Richard\Git Repos\ClearPathPayroll\src\ClearPathPayroll\bin\Debug\net8.0\Azure.Extensions.AspNetCore.Configuration.Secrets.dll
+D:\Richard\Git Repos\ClearPathPayroll\src\ClearPathPayroll\bin\Debug\net8.0\Azure.Security.KeyVault.Secrets.dll
+D:\Richard\Git Repos\ClearPathPayroll\src\ClearPathPayroll\bin\Debug\net8.0\System.ClientModel.dll

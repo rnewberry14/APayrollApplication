@@ -20,9 +20,35 @@
             </NavLink>
         </div>
 
-        <div class="nav-item px-3">
+        @using ClearPathPayroll.Configuration
+@using Microsoft.Extensions.Options
+@inject IHostEnvironment HostEnvironment
+@inject IOptions<PrototypeModeOptions> PrototypeOptions
+
+<div class="nav-item px-3">
             <NavLink class="nav-link" href="weather">
                 <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Weather
+            </NavLink>
+        </div>
+
+        @if (PrototypeModeHelper.ShouldUseLocalPrototypeMode(HostEnvironment, PrototypeOptions.Value))
+        {
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="seed-demo-data">
+                    <span class="bi bi-seedling-fill-nav-menu" aria-hidden="true"></span> Seed Demo Data
+                </NavLink>
+            </div>
+        }
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="reports/payroll-register">
+                <span class="bi bi-file-earmark-text-fill-nav-menu" aria-hidden="true"></span> Payroll Register
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="reports/tax-liability">
+                <span class="bi bi-file-earmark-text-fill-nav-menu" aria-hidden="true"></span> Tax Liability
             </NavLink>
         </div>
     </nav>

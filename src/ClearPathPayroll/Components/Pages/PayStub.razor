@@ -1,0 +1,233 @@
+@page "/paystub/{PayrollRunId:int}/{EmployeeId:int}"
+@using ClearPathPayroll.Domain
+@using ClearPathPayroll.Services
+@inject PayStubService PayStubService
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Pay Stub - ClearPath Payroll</PageTitle>
+
+<div class="container-fluid mt-4 paystub-page">
+    @if (isLoading)
+    {
+        <div class="alert alert-info">Loading pay stub...</div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+    else if (payStub == null)
+    {
+        <div class="alert alert-warning">Pay stub not available.</div>
+    }
+    else
+    {
+        <div class="row mb-3 no-print">
+            <div class="col-md-6">
+                <h2>Pay Stub</h2>
+                <p class="text-muted">Printable employee pay stub for payroll run #@payStub.PayrollRunId</p>
+            </div>
+            <div class="col-md-6 text-end no-print">
+                <button class="btn btn-secondary me-2" @onclick="PrintPayStub">Print</button>
+                <button class="btn btn-outline-secondary" @onclick="GoBack">Back</button>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p class="mb-1 text-muted">Company</p>
+                        <h4>@payStub.CompanyName</h4>
+                    </div>
+                    <div class="col-md-6 text-md-end">
+                        <p class="mb-1 text-muted">Employee</p>
+                        <h4>@payStub.EmployeeName</h4>
+                        <p class="mb-0 text-muted">SSN: ***-**-@payStub.SsnLast4</p>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-md-4">
+                        <p class="mb-1 text-muted">Pay Period</p>
+                        <p class="lead">@payStub.PayPeriodStart.ToString("MM/dd/yyyy") - @payStub.PayPeriodEnd.ToString("MM/dd/yyyy")</p>
+                    </div>
+                    <div class="col-md-4">
+                        <p class="mb-1 text-muted">Pay Date</p>
+                        <p class="lead">@payStub.PayDate.ToString("MM/dd/yyyy")</p>
+                    </div>
+                    <div class="col-md-4">
+                        <p class="mb-1 text-muted">Direct Deposit</p>
+                        <p class="lead">Last 4: @payStub.DirectDepositLast4</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-lg-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0">Earnings</h6>
+                    </div>
+                    <div class="card-body">
+                        @if (payStub.Earnings.Count == 0)
+                        {
+                            <p class="text-muted">No earnings recorded.</p>
+                        }
+                        else
+                        {
+                            <ul class="list-group list-group-flush">
+                                @foreach (var line in payStub.Earnings)
+                                {
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        <span>@line.Description</span>
+                                        <span>@line.Amount.ToString("C")</span>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0">Taxes</h6>
+                    </div>
+                    <div class="card-body">
+                        @if (payStub.EmployeeTaxes.Count == 0)
+                        {
+                            <p class="text-muted">No taxes recorded.</p>
+                        }
+                        else
+                        {
+                            <ul class="list-group list-group-flush">
+                                @foreach (var line in payStub.EmployeeTaxes)
+                                {
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        <span>@line.Description</span>
+                                        <span>@line.Amount.ToString("C")</span>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0">Deductions</h6>
+                    </div>
+                    <div class="card-body">
+                        @if (payStub.Deductions.Count == 0)
+                        {
+                            <p class="text-muted">No deductions recorded.</p>
+                        }
+                        else
+                        {
+                            <ul class="list-group list-group-flush">
+                                @foreach (var line in payStub.Deductions)
+                                {
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        <span>@line.Description</span>
+                                        <span>@line.Amount.ToString("C")</span>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <p class="text-muted mb-1">Net Pay</p>
+                        <h3 class="text-success">@payStub.NetPay.ToString("C")</h3>
+                    </div>
+                    <div class="col-md-8">
+                        <p class="text-muted mb-1">Year-to-date Totals</p>
+                        <p class="mb-1">@payStub.YtdTotalsPlaceholder</p>
+                        <div class="row">
+                            <div class="col-sm-6">
+                                <div class="fw-bold">Gross</div>
+                                <div>@payStub.YtdGrossPay.ToString("C")</div>
+                            </div>
+                            <div class="col-sm-6">
+                                <div class="fw-bold">Net</div>
+                                <div>@payStub.YtdNetPay.ToString("C")</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    @@media print {
+        .no-print {
+            display: none !important;
+        }
+
+        body {
+            background: #fff;
+            color: #000;
+        }
+
+        .card {
+            border: 1px solid #ddd;
+            box-shadow: none;
+        }
+    }
+</style>
+
+@code {
+    [Parameter]
+    public int PayrollRunId { get; set; }
+
+    [Parameter]
+    public int EmployeeId { get; set; }
+
+    private PayStubModel? payStub;
+    private bool isLoading = true;
+    private string errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPayStub();
+    }
+
+    private async Task LoadPayStub()
+    {
+        isLoading = true;
+        errorMessage = string.Empty;
+
+        try
+        {
+            payStub = await PayStubService.GetPayStubAsync(PayrollRunId, EmployeeId);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task PrintPayStub()
+    {
+        await JSRuntime.InvokeVoidAsync("window.print");
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo("/");
+    }
+}

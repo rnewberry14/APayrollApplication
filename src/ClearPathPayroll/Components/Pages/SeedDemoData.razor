@@ -1,0 +1,91 @@
+@page "/seed-demo-data"
+@using ClearPathPayroll.Configuration
+@using ClearPathPayroll.Services
+@inject SeedDataService SeedDataService
+@inject IHostEnvironment HostEnvironment
+@inject Microsoft.Extensions.Options.IOptions<PrototypeModeOptions> PrototypeOptions
+
+<PageTitle>Seed Demo Data</PageTitle>
+
+<div class="container-fluid mt-4">
+    <h1>Seed Demo Data</h1>
+
+    <p>This page creates local demo payroll data for development and local prototype testing only.</p>
+
+    @if (!IsAllowed)
+    {
+        <div class="alert alert-warning">
+            Seed Demo Data is only available in Development or Local Prototype Mode.
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-info">
+            This operation writes a sample company, employees, pay schedule, payroll run, earnings, and demo bank tokens to the local database.
+        </div>
+
+        <button class="btn btn-primary" @onclick="HandleSeedData" disabled="@isProcessing">
+            @if (isProcessing)
+            {
+                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                <text>Seeding</text>
+            }
+            else
+            {
+                <text>Seed Demo Data</text>
+            }
+        </button>
+
+        @if (!string.IsNullOrWhiteSpace(statusMessage))
+        {
+            <div class="alert alert-secondary mt-3" role="status">@statusMessage</div>
+        }
+
+        @if (seedResult != null)
+        {
+            <div class="card mt-3">
+                <div class="card-body">
+                    <p><strong>Company:</strong> @seedResult.CompanyName</p>
+                    <p><strong>Employee count:</strong> @seedResult.EmployeeCount</p>
+                    <p><strong>Payroll run ID:</strong> @seedResult.PayrollRunId</p>
+                    <p><strong>Status:</strong> @(seedResult.AlreadyExists ? "Already seeded" : "Created")</p>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private bool isProcessing;
+    private string statusMessage = string.Empty;
+    private SeedDataResult? seedResult;
+
+    private bool IsAllowed => PrototypeModeHelper.ShouldUseLocalPrototypeMode(HostEnvironment, PrototypeOptions.Value);
+
+    private async Task HandleSeedData()
+    {
+        if (!IsAllowed)
+        {
+            statusMessage = "Demo data can only be seeded in Development or Local Prototype Mode.";
+            return;
+        }
+
+        isProcessing = true;
+        statusMessage = string.Empty;
+        seedResult = null;
+
+        try
+        {
+            seedResult = await SeedDataService.SeedDemoDataAsync();
+            statusMessage = seedResult.Message;
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Failed to seed demo data: {ex.Message}";
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+}

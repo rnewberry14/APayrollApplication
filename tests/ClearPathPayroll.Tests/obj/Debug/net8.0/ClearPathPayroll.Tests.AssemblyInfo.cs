@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ClearPathPayroll.Tests")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+26c4a72c877d06afba2783658bd47d7e89485548")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e4e7039ba2aa20c82952c14ccd1f472b94bc504a")]
 [assembly: System.Reflection.AssemblyProductAttribute("ClearPathPayroll.Tests")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ClearPathPayroll.Tests")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

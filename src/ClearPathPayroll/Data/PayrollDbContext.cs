@@ -21,6 +21,10 @@ public class PayrollDbContext : DbContext
     public DbSet<EmployerTaxLine> EmployerTaxLines { get; set; }
     public DbSet<NetPayLine> NetPayLines { get; set; }
     public DbSet<AuditLogEntry> AuditLogEntries { get; set; }
+    public DbSet<EmployeeBankAccount> EmployeeBankAccounts { get; set; }
+    public DbSet<CompanyFundingAccount> CompanyFundingAccounts { get; set; }
+    public DbSet<DirectDepositBatch> DirectDepositBatches { get; set; }
+    public DbSet<DirectDepositItem> DirectDepositItems { get; set; }
 
     // Add DbSets here as entities are created
 
@@ -143,6 +147,76 @@ public class PayrollDbContext : DbContext
                   .WithMany(pre => pre.NetPayLines)
                   .HasForeignKey(n => n.PayrollRunEmployeeId);
             entity.Property(n => n.Amount).HasPrecision(18, 2);
+        });
+
+        // EmployeeBankAccount configuration
+        modelBuilder.Entity<EmployeeBankAccount>(entity =>
+        {
+            entity.HasKey(e => e.EmployeeBankAccountId);
+            entity.HasOne(e => e.Employee)
+                  .WithMany()
+                  .HasForeignKey(e => e.EmployeeId);
+            entity.Property(e => e.BankName).HasMaxLength(100);
+            entity.Property(e => e.RoutingNumberToken).HasMaxLength(256);
+            entity.Property(e => e.AccountNumberToken).HasMaxLength(256);
+            entity.Property(e => e.Last4).HasMaxLength(4);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("GETUTCDATE()");
+        });
+
+        // CompanyFundingAccount configuration
+        modelBuilder.Entity<CompanyFundingAccount>(entity =>
+        {
+            entity.HasKey(c => c.CompanyFundingAccountId);
+            entity.HasOne(c => c.Company)
+                  .WithMany()
+                  .HasForeignKey(c => c.CompanyId);
+            entity.Property(c => c.BankName).HasMaxLength(100);
+            entity.Property(c => c.RoutingNumberToken).HasMaxLength(256);
+            entity.Property(c => c.AccountNumberToken).HasMaxLength(256);
+            entity.Property(c => c.Last4).HasMaxLength(4);
+            entity.Property(c => c.Description).HasMaxLength(200);
+            entity.Property(c => c.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(c => c.UpdatedAt).HasDefaultValueSql("GETUTCDATE()");
+        });
+
+        // DirectDepositBatch configuration
+        modelBuilder.Entity<DirectDepositBatch>(entity =>
+        {
+            entity.HasKey(b => b.BatchId);
+            entity.HasOne(b => b.PayrollRun)
+                  .WithMany()
+                  .HasForeignKey(b => b.PayrollRunId);
+            entity.HasOne(b => b.Company)
+                  .WithMany()
+                  .HasForeignKey(b => b.CompanyId);
+            entity.HasOne(b => b.FundingAccount)
+                  .WithMany(f => f.DirectDepositBatches)
+                  .HasForeignKey(b => b.CompanyFundingAccountId);
+            entity.Property(b => b.TotalAmount).HasPrecision(18, 2);
+            entity.Property(b => b.Description).HasMaxLength(200);
+            entity.Property(b => b.ExternalBatchReference).HasMaxLength(256);
+            entity.Property(b => b.ErrorMessage).HasMaxLength(1000);
+            entity.Property(b => b.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+        });
+
+        // DirectDepositItem configuration
+        modelBuilder.Entity<DirectDepositItem>(entity =>
+        {
+            entity.HasKey(i => i.BatchItemId);
+            entity.HasOne(i => i.Batch)
+                  .WithMany(b => b.Items)
+                  .HasForeignKey(i => i.BatchId);
+            entity.HasOne(i => i.Employee)
+                  .WithMany()
+                  .HasForeignKey(i => i.EmployeeId);
+            entity.HasOne(i => i.BankAccount)
+                  .WithMany(a => a.DirectDepositItems)
+                  .HasForeignKey(i => i.EmployeeBankAccountId);
+            entity.Property(i => i.Amount).HasPrecision(18, 2);
+            entity.Property(i => i.ExternalItemReference).HasMaxLength(256);
+            entity.Property(i => i.ReturnCode).HasMaxLength(10);
+            entity.Property(i => i.ReturnDescription).HasMaxLength(500);
         });
 
         // AuditLogEntry configuration

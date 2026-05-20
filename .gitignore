@@ -1,0 +1,30 @@
+# Build outputs
+/bin/
+/obj/
+
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Visual Studio files
+.vs/
+
+# .NET user secrets files should never be committed
+**/secrets.json
+**/secrets.*
+
+# Database files
+*.mdf
+*.ldf
+
+# Logs
+*.log
+
+# Rider
+.idea/
+
+# Temporary files
+*.tmp
+*.temp
