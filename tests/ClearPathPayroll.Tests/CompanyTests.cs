@@ -1,11 +1,12 @@
 using ClearPathPayroll.Domain;
+using ClearPathPayroll.Services;
 using System.ComponentModel.DataAnnotations;
 using Xunit;
 
 namespace ClearPathPayroll.Tests;
 
 /// <summary>
-/// Unit tests for the Company entity validation rules.
+/// Unit tests for the Company entity and CompanyService.
 /// </summary>
 public class CompanyTests
 {
@@ -125,5 +126,36 @@ public class CompanyTests
 
         // Assert
         Assert.Contains(results, r => r.ErrorMessage.Contains("State"));
+    }
+
+    [Theory]
+    [InlineData("1234567890", "12-34-****")]
+    [InlineData("12-34-5678", "12-34-****")]
+    [InlineData("123456789", "12-34-****")]
+    [InlineData("", "XX-XX-****")]
+    [InlineData(null, "XX-XX-****")]
+    [InlineData("12", "XX-XX-****")]
+    public void CompanyService_MaskFEIN_ShouldReturnCorrectMaskedValue(string fein, string expected)
+    {
+        // Act
+        var result = CompanyService.MaskFEIN(fein);
+
+        // Assert
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void CompanyService_MaskFEIN_WithValidFEIN_ShouldHideMostDigits()
+    {
+        // Arrange
+        var fein = "98-7654321";
+
+        // Act
+        var masked = CompanyService.MaskFEIN(fein);
+
+        // Assert
+        Assert.StartsWith("98-76", masked);
+        Assert.EndsWith("****", masked);
+        Assert.DoesNotContain("5", masked); // Middle digits should be masked
     }
 }

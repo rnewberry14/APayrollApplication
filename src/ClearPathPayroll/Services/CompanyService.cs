@@ -68,4 +68,25 @@ public class CompanyService
         _context.Companies.Update(company);
         return await _context.SaveChangesAsync() > 0;
     }
+
+    /// <summary>
+    /// Masks a FEIN for display purposes. Shows only first 2 digits and next 2 digits.
+    /// Format: XX-XX-****
+    /// Example: 12-3456789 -> 12-34-****
+    /// SENSITIVE: FEIN is sensitive data and should never be logged or exposed unnecessarily.
+    /// </summary>
+    /// <param name="fein">The unmasked FEIN (9-10 digits)</param>
+    /// <returns>Masked FEIN string in format XX-XX-****</returns>
+    public static string MaskFEIN(string? fein)
+    {
+        if (string.IsNullOrEmpty(fein))
+            return "XX-XX-****";
+
+        var digits = fein.Replace("-", "").Trim();
+        if (digits.Length < 5)
+            return "XX-XX-****";
+
+        // Show first 2 digits, next 2 digits, mask the rest
+        return $"{digits.Substring(0, 2)}-{digits.Substring(2, 2)}-****";
+    }
 }
