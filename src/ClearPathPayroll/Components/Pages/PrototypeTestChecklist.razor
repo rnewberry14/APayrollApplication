@@ -1,0 +1,160 @@
+@page "/prototype-test-checklist"
+@using ClearPathPayroll.Configuration
+@using Microsoft.Extensions.Options
+@inject IHostEnvironment HostEnvironment
+@inject IOptions<PrototypeModeOptions> PrototypeOptions
+
+<PageTitle>Prototype Test Checklist - ClearPath Payroll</PageTitle>
+
+<div class="container-fluid mt-4">
+    <NoAdviceDisclaimer />
+
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2>End-to-End Prototype Test Checklist</h2>
+            <p class="text-muted">Manual checklist for local prototype payroll testing only.</p>
+        </div>
+        <div class="col-md-4 text-md-end">
+            <span class="badge @(IsAllowed ? "bg-success" : "bg-warning text-dark")">
+                @(IsAllowed ? "Local prototype mode available" : "Prototype mode unavailable")
+            </span>
+        </div>
+    </div>
+
+    @if (!IsAllowed)
+    {
+        <div class="alert alert-warning" role="alert">
+            This checklist is for Development or Local Prototype Mode only. Checklist controls are disabled outside local prototype testing.
+        </div>
+    }
+
+    <div class="alert alert-info" role="note">
+        Local prototype testing only. Do not enter real SSNs, full bank account numbers, routing numbers, production API keys, or real payment instructions.
+        This page does not transmit data externally, submit ACH, submit tax filings, or provide advice.
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex flex-column flex-md-row justify-content-between gap-3">
+                <div>
+                    <h5 class="mb-1">Checklist Progress</h5>
+                    <p class="text-muted mb-0">@CompletedCount of @ChecklistItems.Count steps complete</p>
+                </div>
+                <button class="btn btn-outline-secondary align-self-md-start" @onclick="ResetChecklist" disabled="@(!IsAllowed || CompletedCount == 0)">
+                    Reset Checklist
+                </button>
+            </div>
+            <div class="progress mt-3" role="progressbar" aria-label="Prototype checklist progress" aria-valuenow="@CompletionPercent" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress-bar" style="width: @CompletionPercent%">@CompletionPercent%</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-striped align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th style="width: 5rem;">Done</th>
+                    <th>Step</th>
+                    <th>Status</th>
+                    <th class="text-end">Open</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in ChecklistItems)
+                {
+                    <tr>
+                        <td>
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   checked="@IsComplete(item.Id)"
+                                   disabled="@(!IsAllowed)"
+                                   aria-label="Mark @item.Title complete"
+                                   @onchange="args => SetComplete(item.Id, args)" />
+                        </td>
+                        <td>
+                            <strong>@item.Id. @item.Title</strong>
+                            <div class="text-muted small">@item.Detail</div>
+                        </td>
+                        <td>
+                            <span class="badge @(IsComplete(item.Id) ? "bg-success" : "bg-secondary")">
+                                @(IsComplete(item.Id) ? "Complete" : "Open")
+                            </span>
+                        </td>
+                        <td class="text-end">
+                            @if (!string.IsNullOrWhiteSpace(item.Link))
+                            {
+                                <a class="btn btn-sm btn-outline-primary" href="@item.Link">@item.LinkText</a>
+                            }
+                            else
+                            {
+                                <span class="text-muted small">Manual</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    private readonly Dictionary<int, bool> completedItems = new();
+
+    private bool IsAllowed => PrototypeModeHelper.ShouldUseLocalPrototypeMode(HostEnvironment, PrototypeOptions.Value);
+
+    private int CompletedCount => ChecklistItems.Count(item => IsComplete(item.Id));
+
+    private int CompletionPercent => ChecklistItems.Count == 0
+        ? 0
+        : (int)Math.Round((double)CompletedCount / ChecklistItems.Count * 100);
+
+    protected override void OnInitialized()
+    {
+        foreach (var item in ChecklistItems)
+        {
+            completedItems.TryAdd(item.Id, false);
+        }
+    }
+
+    private bool IsComplete(int itemId)
+    {
+        return completedItems.TryGetValue(itemId, out var isComplete) && isComplete;
+    }
+
+    private void SetComplete(int itemId, ChangeEventArgs args)
+    {
+        completedItems[itemId] = args.Value is bool value && value;
+    }
+
+    private void ResetChecklist()
+    {
+        foreach (var itemId in completedItems.Keys.ToList())
+        {
+            completedItems[itemId] = false;
+        }
+    }
+
+    private sealed record ChecklistItem(int Id, string Title, string Detail, string? Link = null, string LinkText = "Open");
+
+    private static readonly IReadOnlyList<ChecklistItem> ChecklistItems = new List<ChecklistItem>
+    {
+        new(1, "Confirm Local Prototype Mode is enabled", "Verify the app is running in Development or Local Prototype Mode before continuing."),
+        new(2, "Seed demo data", "Create local sample company, employee, schedule, payroll, and fake bank token data.", "/demo/seed-data", "Seed Data"),
+        new(3, "Open Company Setup", "Review the company setup area or seeded company data in the local prototype environment."),
+        new(4, "Open Employee Setup", "Review employee setup or seeded employee data without displaying full SSNs or bank account numbers."),
+        new(5, "Open Pay Schedule Setup", "Confirm pay schedule dates before processing payroll.", "/setup/pay-schedules", "Pay Schedules"),
+        new(6, "Create Payroll Run", "Create a draft payroll run for the selected company, pay schedule, and eligible employees.", "/payroll/create", "Create Payroll"),
+        new(7, "Calculate Payroll", "Use Recalculate Payroll on the payroll preview page. Do not submit tax filings from this workflow."),
+        new(8, "Preview Payroll", "Review payroll totals, employee lines, warnings, and validation messages on the preview page."),
+        new(9, "Approve Payroll", "Use the approval confirmation modal after validation errors are resolved."),
+        new(10, "Submit Fake Direct Deposit", "Submit fake/sandbox direct deposit only after approval. Confirm no production ACH is used."),
+        new(11, "Open Pay Stub", "Open a pay stub from a payroll run employee route and confirm sensitive values are masked."),
+        new(12, "Open Payroll Register", "Review the payroll register report for the prototype run.", "/reports/payroll-register", "Register"),
+        new(13, "Open Tax Liability Report", "Review the tax liability report and confirm it is only reporting data.", "/reports/tax-liability", "Tax Report"),
+        new(14, "Export CSV reports", "Export available CSV reports for local review only."),
+        new(15, "Confirm no real ACH was submitted", "Verify direct deposit status references fake/sandbox submission only."),
+        new(16, "Confirm no tax filing was submitted", "Verify the workflow did not submit tax filings or call production filing services."),
+        new(17, "Confirm no full SSN or bank account number is displayed", "Review visible pages and exports for masked sensitive data only.")
+    };
+}

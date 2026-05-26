@@ -28,6 +28,10 @@ build_metadata.AdditionalFiles.CssScope =
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xDb3VudGVyLnJhem9y
 build_metadata.AdditionalFiles.CssScope = 
 
+[D:/Richard/Git Repos/ClearPathPayroll/src/ClearPathPayroll/Components/Pages/DemoSeedData.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xEZW1vU2VlZERhdGEucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
 [D:/Richard/Git Repos/ClearPathPayroll/src/ClearPathPayroll/Components/Pages/Error.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xFcnJvci5yYXpvcg==
 build_metadata.AdditionalFiles.CssScope = 
@@ -44,8 +48,20 @@ build_metadata.AdditionalFiles.CssScope =
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xQYXlyb2xsUmVnaXN0ZXIucmF6b3I=
 build_metadata.AdditionalFiles.CssScope = 
 
+[D:/Richard/Git Repos/ClearPathPayroll/src/ClearPathPayroll/Components/Pages/PayrollRunCreate.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xQYXlyb2xsUnVuQ3JlYXRlLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[D:/Richard/Git Repos/ClearPathPayroll/src/ClearPathPayroll/Components/Pages/PayScheduleSetup.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xQYXlTY2hlZHVsZVNldHVwLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
 [D:/Richard/Git Repos/ClearPathPayroll/src/ClearPathPayroll/Components/Pages/PayStub.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xQYXlTdHViLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[D:/Richard/Git Repos/ClearPathPayroll/src/ClearPathPayroll/Components/Pages/PrototypeTestChecklist.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xQcm90b3R5cGVUZXN0Q2hlY2tsaXN0LnJhem9y
 build_metadata.AdditionalFiles.CssScope = 
 
 [D:/Richard/Git Repos/ClearPathPayroll/src/ClearPathPayroll/Components/Pages/SeedDemoData.razor]
@@ -62,6 +78,10 @@ build_metadata.AdditionalFiles.CssScope =
 
 [D:/Richard/Git Repos/ClearPathPayroll/src/ClearPathPayroll/Components/Routes.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xSb3V0ZXMucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[D:/Richard/Git Repos/ClearPathPayroll/src/ClearPathPayroll/Components/Shared/NoAdviceDisclaimer.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xTaGFyZWRcTm9BZHZpY2VEaXNjbGFpbWVyLnJhem9y
 build_metadata.AdditionalFiles.CssScope = 
 
 [D:/Richard/Git Repos/ClearPathPayroll/src/ClearPathPayroll/Components/_Imports.razor]

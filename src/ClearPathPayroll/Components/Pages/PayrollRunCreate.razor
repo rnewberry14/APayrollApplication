@@ -1,0 +1,494 @@
+@page "/payroll/create"
+@using System.ComponentModel.DataAnnotations
+@using ClearPathPayroll.Configuration
+@using ClearPathPayroll.Domain
+@using ClearPathPayroll.Services
+@using Microsoft.Extensions.Hosting
+@using Microsoft.Extensions.Options
+@inject CompanyService CompanyService
+@inject PayScheduleService PayScheduleService
+@inject EmployeeService EmployeeService
+@inject PayrollService PayrollService
+@inject NavigationManager NavigationManager
+@inject IHostEnvironment HostEnvironment
+@inject IOptions<PrototypeModeOptions> PrototypeOptions
+@inject IOptions<LimitedLiabilityModeOptions> LimitedLiabilityOptions
+
+<PageTitle>Create Payroll Run - ClearPath Payroll</PageTitle>
+
+<div class="container-fluid mt-4">
+    <NoAdviceDisclaimer />
+
+    <div class="alert alert-success" role="status">
+        <strong>Local Demo Mode:</strong> Data is stored in the local database. This wizard does not submit ACH, file taxes, or call production APIs.
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2>Payroll Run Wizard</h2>
+            <p class="text-muted">Create a draft payroll run for regular, after-the-fact, or correction payroll review.</p>
+        </div>
+        <div class="col-md-4 text-md-end">
+            <span class="badge bg-primary">Step @currentStep of 6</span>
+        </div>
+    </div>
+
+    @if (!IsAllowed)
+    {
+        <div class="alert alert-warning">
+            Payroll run setup is available only in Development, Local Prototype Mode, or Local-Only Mode.
+        </div>
+    }
+    else if (isLoading)
+    {
+        <div class="alert alert-info">Loading payroll setup data...</div>
+    }
+    else if (companies.Count == 0)
+    {
+        <div class="alert alert-warning">Add an active company before creating payroll runs.</div>
+    }
+    else
+    {
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                @errorMessage
+                <button type="button" class="btn-close" @onclick="() => errorMessage = string.Empty"></button>
+            </div>
+        }
+
+        <div class="progress mb-4" role="progressbar" aria-label="Payroll run wizard progress" aria-valuenow="@ProgressPercent" aria-valuemin="0" aria-valuemax="100">
+            <div class="progress-bar" style="width: @ProgressPercent%">@ProgressPercent%</div>
+        </div>
+
+        <EditForm Model="formModel" OnValidSubmit="HandleCreatePayrollRun">
+            <DataAnnotationsValidator />
+
+            @if (currentStep == 1)
+            {
+                <div class="card mb-4">
+                    <div class="card-header bg-light"><h5 class="mb-0">Step 1: Select Company</h5></div>
+                    <div class="card-body">
+                        <label class="form-label" for="company">Company</label>
+                        <select id="company" class="form-select" value="@formModel.CompanyId" @onchange="OnCompanyChanged">
+                            <option value="0">Select a company</option>
+                            @foreach (var company in companies)
+                            {
+                                <option value="@company.CompanyId">@company.LegalName</option>
+                            }
+                        </select>
+                        <ValidationMessage For="() => formModel.CompanyId" />
+                    </div>
+                </div>
+            }
+
+            @if (currentStep == 2)
+            {
+                <div class="card mb-4">
+                    <div class="card-header bg-light"><h5 class="mb-0">Step 2: Select Pay Schedule</h5></div>
+                    <div class="card-body">
+                        <label class="form-label" for="pay-schedule">Pay schedule</label>
+                        <select id="pay-schedule" class="form-select" value="@formModel.PayScheduleId" @onchange="OnPayScheduleChanged" disabled="@(paySchedules.Count == 0)">
+                            <option value="0">Select a pay schedule</option>
+                            @foreach (var paySchedule in paySchedules)
+                            {
+                                <option value="@paySchedule.PayScheduleId">@paySchedule.Name</option>
+                            }
+                        </select>
+                        <ValidationMessage For="() => formModel.PayScheduleId" />
+
+                        @if (paySchedules.Count == 0)
+                        {
+                            <p class="text-muted mt-3 mb-0">No active pay schedules found for the selected company.</p>
+                        }
+                    </div>
+                </div>
+            }
+
+            @if (currentStep == 3)
+            {
+                <div class="card mb-4">
+                    <div class="card-header bg-light"><h5 class="mb-0">Step 3: Select Payroll Mode</h5></div>
+                    <div class="card-body">
+                        @foreach (var mode in PayrollModes)
+                        {
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="radio" name="payroll-mode" id="@GetModeId(mode)" value="@mode" checked="@(formModel.PayrollMode == mode)" @onchange="() => formModel.PayrollMode = mode" />
+                                <label class="form-check-label" for="@GetModeId(mode)">@mode</label>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @if (currentStep == 4)
+            {
+                <div class="card mb-4">
+                    <div class="card-header bg-light"><h5 class="mb-0">Step 4: Confirm Payroll Dates</h5></div>
+                    <div class="card-body">
+                        @if (selectedPaySchedule == null)
+                        {
+                            <p class="text-muted mb-0">Select a pay schedule before confirming dates.</p>
+                        }
+                        else
+                        {
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label text-muted">Pay period start</label>
+                                    <p class="lead">@selectedPaySchedule.NextPeriodStartDate.ToString("MM/dd/yyyy")</p>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label text-muted">Pay period end</label>
+                                    <p class="lead">@selectedPaySchedule.NextPeriodEndDate.ToString("MM/dd/yyyy")</p>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label text-muted">Pay date</label>
+                                    <p class="lead">@selectedPaySchedule.NextPayDate.ToString("MM/dd/yyyy")</p>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @if (currentStep == 5)
+            {
+                <div class="card mb-4">
+                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Step 5: Select Employees</h5>
+                        <span class="badge bg-secondary">@SelectedEmployeeCount selected</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-striped mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Select</th>
+                                    <th>Employee</th>
+                                    <th>Pay type</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var employee in employees)
+                                {
+                                    var row = GetEmployeeRow(employee.EmployeeId);
+                                    <tr>
+                                        <td><InputCheckbox class="form-check-input" @bind-Value="row.IsSelected" /></td>
+                                        <td><strong>@employee.FirstName @employee.LastName</strong></td>
+                                        <td>@employee.PayType</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+
+            @if (currentStep == 6)
+            {
+                <div class="card mb-4">
+                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Step 6: Enter Pay Data</h5>
+                        <span class="badge bg-secondary">@DraftTotalGrossPay.ToString("C") draft gross</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-striped mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Employee</th>
+                                    <th class="text-end">Regular hours</th>
+                                    <th class="text-end">Overtime hours placeholder</th>
+                                    <th class="text-end">Manual gross adjustment</th>
+                                    <th>Notes</th>
+                                    <th class="text-end">Draft gross</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var employee in SelectedEmployees)
+                                {
+                                    var row = GetEmployeeRow(employee.EmployeeId);
+                                    <tr>
+                                        <td><strong>@employee.FirstName @employee.LastName</strong></td>
+                                        <td class="text-end">
+                                            @if (employee.PayType == PayType.Hourly)
+                                            {
+                                                <InputNumber class="form-control text-end" @bind-Value="row.RegularHours" min="0" step="0.25" />
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">Salary</span>
+                                            }
+                                        </td>
+                                        <td class="text-end">
+                                            @if (employee.PayType == PayType.Hourly)
+                                            {
+                                                <InputNumber class="form-control text-end" @bind-Value="row.OvertimeHours" min="0" step="0.25" />
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">N/A</span>
+                                            }
+                                        </td>
+                                        <td class="text-end">
+                                            <InputNumber class="form-control text-end" @bind-Value="row.ManualGrossPayAdjustment" min="0" step="0.01" />
+                                        </td>
+                                        <td>
+                                            <InputText class="form-control" @bind-Value="row.Notes" />
+                                        </td>
+                                        <td class="text-end">@CalculateDraftGrossPay(employee, row).ToString("C")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <button type="button" class="btn btn-outline-secondary" @onclick="PreviousStep" disabled="@(currentStep == 1 || isSaving)">Back</button>
+
+                @if (currentStep < 6)
+                {
+                    <button type="button" class="btn btn-primary" @onclick="NextStep" disabled="@isSaving">Next</button>
+                }
+                else
+                {
+                    <button type="submit" class="btn btn-primary" disabled="@(isSaving || SelectedEmployeeCount == 0)">
+                        @if (isSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            <text>Creating</text>
+                        }
+                        else
+                        {
+                            <text>Create Payroll Run</text>
+                        }
+                    </button>
+                }
+            </div>
+        </EditForm>
+    }
+</div>
+
+@code {
+    private static readonly IReadOnlyList<string> PayrollModes = new[]
+    {
+        "Regular payroll",
+        "After-the-fact payroll",
+        "Correction payroll"
+    };
+
+    private readonly PayrollRunWizardModel formModel = new();
+    private readonly List<EmployeeSelectionRow> employeeRows = new();
+    private List<Company> companies = new();
+    private List<PaySchedule> paySchedules = new();
+    private List<Employee> employees = new();
+    private PaySchedule? selectedPaySchedule;
+    private bool isLoading = true;
+    private bool isSaving;
+    private int currentStep = 1;
+    private string errorMessage = string.Empty;
+
+    private bool IsAllowed =>
+        HostEnvironment.IsDevelopment() ||
+        LimitedLiabilityOptions.Value.Enabled ||
+        PrototypeModeHelper.ShouldUseLocalPrototypeMode(HostEnvironment, PrototypeOptions.Value);
+
+    private int ProgressPercent => (int)Math.Round(currentStep / 6d * 100);
+    private int SelectedEmployeeCount => employeeRows.Count(row => row.IsSelected);
+    private IEnumerable<Employee> SelectedEmployees => employees.Where(employee => GetEmployeeRow(employee.EmployeeId).IsSelected);
+    private decimal DraftTotalGrossPay => SelectedEmployees.Sum(employee => CalculateDraftGrossPay(employee, GetEmployeeRow(employee.EmployeeId)));
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!IsAllowed)
+        {
+            isLoading = false;
+            return;
+        }
+
+        try
+        {
+            companies = await CompanyService.GetAllActiveCompaniesAsync();
+
+            if (companies.Count == 1)
+            {
+                formModel.CompanyId = companies[0].CompanyId;
+                await LoadCompanySetup();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Unable to load payroll setup data: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task OnCompanyChanged(ChangeEventArgs args)
+    {
+        formModel.CompanyId = int.TryParse(args.Value?.ToString(), out var companyId) ? companyId : 0;
+        formModel.PayScheduleId = 0;
+        selectedPaySchedule = null;
+        errorMessage = string.Empty;
+        await LoadCompanySetup();
+    }
+
+    private async Task LoadCompanySetup()
+    {
+        paySchedules.Clear();
+        employees.Clear();
+        employeeRows.Clear();
+
+        if (formModel.CompanyId == 0)
+        {
+            return;
+        }
+
+        paySchedules = await PayScheduleService.GetActivePaySchedulesByCompanyAsync(formModel.CompanyId);
+        employees = await EmployeeService.GetActiveEmployeesByCompanyAsync(formModel.CompanyId);
+
+        foreach (var employee in employees)
+        {
+            employeeRows.Add(new EmployeeSelectionRow
+            {
+                EmployeeId = employee.EmployeeId,
+                RegularHours = employee.PayType == PayType.Hourly ? 40m : 0m
+            });
+        }
+    }
+
+    private void OnPayScheduleChanged(ChangeEventArgs args)
+    {
+        formModel.PayScheduleId = int.TryParse(args.Value?.ToString(), out var payScheduleId) ? payScheduleId : 0;
+        selectedPaySchedule = paySchedules.FirstOrDefault(schedule => schedule.PayScheduleId == formModel.PayScheduleId);
+        errorMessage = string.Empty;
+    }
+
+    private void NextStep()
+    {
+        errorMessage = ValidateCurrentStep();
+        if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            return;
+        }
+
+        currentStep = Math.Min(6, currentStep + 1);
+    }
+
+    private void PreviousStep()
+    {
+        errorMessage = string.Empty;
+        currentStep = Math.Max(1, currentStep - 1);
+    }
+
+    private string ValidateCurrentStep()
+    {
+        return currentStep switch
+        {
+            1 when formModel.CompanyId <= 0 => "Select a company.",
+            2 when formModel.PayScheduleId <= 0 => "Select a pay schedule.",
+            3 when string.IsNullOrWhiteSpace(formModel.PayrollMode) => "Select a payroll mode.",
+            4 when selectedPaySchedule == null => "Confirm a pay schedule before continuing.",
+            5 when SelectedEmployeeCount == 0 => "Select at least one employee.",
+            6 when employeeRows.Any(row => row.RegularHours < 0 || row.OvertimeHours < 0 || row.ManualGrossPayAdjustment < 0) => "Hours and manual gross pay adjustments cannot be negative.",
+            _ => string.Empty
+        };
+    }
+
+    private async Task HandleCreatePayrollRun()
+    {
+        errorMessage = ValidateCurrentStep();
+        if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            return;
+        }
+
+        isSaving = true;
+
+        try
+        {
+            var selectedRows = employeeRows.Where(row => row.IsSelected).ToList();
+            var employeeInputs = selectedRows.Select(row => new PayrollService.PayrollRunEmployeeSetupInput
+            {
+                EmployeeId = row.EmployeeId,
+                RegularHours = row.RegularHours,
+                OvertimeHours = row.OvertimeHours,
+                ManualGrossPayAdjustment = row.ManualGrossPayAdjustment,
+                Notes = row.Notes,
+                PayrollMode = formModel.PayrollMode
+            });
+
+            var payrollRun = await PayrollService.CreateDraftPayrollRunAsync(
+                formModel.CompanyId,
+                formModel.PayScheduleId,
+                employeeInputs,
+                userId: null);
+
+            NavigationManager.NavigateTo($"/payroll/preview/{payrollRun.PayrollRunId}");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Unable to create payroll run: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private EmployeeSelectionRow GetEmployeeRow(int employeeId)
+    {
+        return employeeRows.First(row => row.EmployeeId == employeeId);
+    }
+
+    private decimal CalculateDraftGrossPay(Employee employee, EmployeeSelectionRow row)
+    {
+        if (!row.IsSelected || selectedPaySchedule == null)
+        {
+            return 0m;
+        }
+
+        var baseGrossPay = employee.PayType == PayType.Hourly
+            ? Math.Round(((row.RegularHours * employee.HourlyRate.GetValueOrDefault()) + (row.OvertimeHours * employee.HourlyRate.GetValueOrDefault() * 1.5m)), 2)
+            : Math.Round(employee.AnnualSalary.GetValueOrDefault() / GetPeriodsPerYear(selectedPaySchedule.Frequency), 2);
+
+        return baseGrossPay + row.ManualGrossPayAdjustment;
+    }
+
+    private static string GetModeId(string mode) => mode.Replace(" ", "-", StringComparison.OrdinalIgnoreCase).ToLowerInvariant();
+
+    private static int GetPeriodsPerYear(PayFrequency frequency)
+    {
+        return frequency switch
+        {
+            PayFrequency.Weekly => 52,
+            PayFrequency.Biweekly => 26,
+            PayFrequency.Semimonthly => 24,
+            PayFrequency.Monthly => 12,
+            _ => 52
+        };
+    }
+
+    private sealed class PayrollRunWizardModel
+    {
+        [Range(1, int.MaxValue, ErrorMessage = "Select a company.")]
+        public int CompanyId { get; set; }
+
+        [Range(1, int.MaxValue, ErrorMessage = "Select a pay schedule.")]
+        public int PayScheduleId { get; set; }
+
+        public string PayrollMode { get; set; } = "Regular payroll";
+    }
+
+    private sealed class EmployeeSelectionRow
+    {
+        public int EmployeeId { get; set; }
+        public bool IsSelected { get; set; }
+        public decimal RegularHours { get; set; }
+        public decimal OvertimeHours { get; set; }
+        public decimal ManualGrossPayAdjustment { get; set; }
+        public string? Notes { get; set; }
+    }
+}

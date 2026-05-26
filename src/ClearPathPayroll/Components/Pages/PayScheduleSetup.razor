@@ -1,0 +1,402 @@
+@page "/setup/pay-schedules"
+@using System.ComponentModel.DataAnnotations
+@using ClearPathPayroll.Domain
+@using ClearPathPayroll.Services
+@inject CompanyService CompanyService
+@inject PayScheduleService PayScheduleService
+
+<PageTitle>Pay Schedule Setup - ClearPath Payroll</PageTitle>
+
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2>Pay Schedule Setup</h2>
+            <p class="text-muted">Create payroll calendars for each company.</p>
+        </div>
+    </div>
+
+    <div class="alert alert-info" role="note">
+        Confirm pay schedule dates before processing payroll.
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="alert alert-info">Loading companies...</div>
+    }
+    else if (companies.Count == 0)
+    {
+        <div class="alert alert-warning">
+            Add an active company before creating pay schedules.
+        </div>
+    }
+    else
+    {
+        @if (!string.IsNullOrWhiteSpace(successMessage))
+        {
+            <div class="alert alert-success alert-dismissible fade show" role="status">
+                @successMessage
+                <button type="button" class="btn-close" @onclick="() => successMessage = string.Empty"></button>
+            </div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                @errorMessage
+                <button type="button" class="btn-close" @onclick="() => errorMessage = string.Empty"></button>
+            </div>
+        }
+
+        <div class="row">
+            <div class="col-lg-5">
+                <div class="card mb-4">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">Create Pay Schedule</h5>
+                    </div>
+                    <div class="card-body">
+                        <EditForm Model="formModel" OnValidSubmit="HandleValidSubmit">
+                            <DataAnnotationsValidator />
+                            <ValidationSummary />
+
+                            <div class="mb-3">
+                                <label class="form-label" for="company">Company</label>
+                                <select id="company" class="form-select" value="@formModel.CompanyId" @onchange="OnCompanyChanged">
+                                    <option value="0">Select a company</option>
+                                    @foreach (var company in companies)
+                                    {
+                                        <option value="@company.CompanyId">@company.LegalName</option>
+                                    }
+                                </select>
+                                <ValidationMessage For="() => formModel.CompanyId" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label" for="name">Name</label>
+                                <InputText id="name" class="form-control" @bind-Value="formModel.Name" />
+                                <ValidationMessage For="() => formModel.Name" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label" for="frequency">Frequency</label>
+                                <InputSelect id="frequency" class="form-select" @bind-Value="formModel.Frequency">
+                                    @foreach (var frequency in Enum.GetValues<PayFrequency>())
+                                    {
+                                        <option value="@frequency">@GetFrequencyName(frequency)</option>
+                                    }
+                                </InputSelect>
+                                <ValidationMessage For="() => formModel.Frequency" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label" for="next-pay-date">Next pay date</label>
+                                <InputDate id="next-pay-date" class="form-control" @bind-Value="formModel.NextPayDate" />
+                                <ValidationMessage For="() => formModel.NextPayDate" />
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label" for="period-start">Next period start date</label>
+                                    <InputDate id="period-start" class="form-control" @bind-Value="formModel.NextPeriodStartDate" />
+                                    <ValidationMessage For="() => formModel.NextPeriodStartDate" />
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label" for="period-end">Next period end date</label>
+                                    <InputDate id="period-end" class="form-control" @bind-Value="formModel.NextPeriodEndDate" />
+                                    <ValidationMessage For="() => formModel.NextPeriodEndDate" />
+                                </div>
+                            </div>
+
+                            <div class="form-check mb-3">
+                                <InputCheckbox id="is-active" class="form-check-input" @bind-Value="formModel.IsActive" />
+                                <label class="form-check-label" for="is-active">Is active</label>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary" disabled="@isSaving">
+                                @if (isSaving)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    <text>Saving</text>
+                                }
+                                else
+                                {
+                                    <text>Create Pay Schedule</text>
+                                }
+                            </button>
+                        </EditForm>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-7">
+                <div class="card mb-4">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">Calculated Next Pay Period Preview</h5>
+                    </div>
+                    <div class="card-body">
+                        @if (previewSchedule == null)
+                        {
+                            <p class="text-muted mb-0">Enter valid dates to preview the following pay period.</p>
+                        }
+                        else
+                        {
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label text-muted">Following pay date</label>
+                                    <p class="lead">@previewSchedule.NextPayDate.ToString("MM/dd/yyyy")</p>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label text-muted">Following period start</label>
+                                    <p class="lead">@previewSchedule.NextPeriodStartDate.ToString("MM/dd/yyyy")</p>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label text-muted">Following period end</label>
+                                    <p class="lead">@previewSchedule.NextPeriodEndDate.ToString("MM/dd/yyyy")</p>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">Company Pay Schedules</h5>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Frequency</th>
+                                    <th>Next pay date</th>
+                                    <th>Next period</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (formModel.CompanyId == 0)
+                                {
+                                    <tr>
+                                        <td colspan="5" class="text-center text-muted">Select a company to view schedules.</td>
+                                    </tr>
+                                }
+                                else if (paySchedules.Count == 0)
+                                {
+                                    <tr>
+                                        <td colspan="5" class="text-center text-muted">No pay schedules found for this company.</td>
+                                    </tr>
+                                }
+                                else
+                                {
+                                    @foreach (var paySchedule in paySchedules)
+                                    {
+                                        <tr>
+                                            <td>@paySchedule.Name</td>
+                                            <td>@GetFrequencyName(paySchedule.Frequency)</td>
+                                            <td>@paySchedule.NextPayDate.ToString("MM/dd/yyyy")</td>
+                                            <td>@paySchedule.NextPeriodStartDate.ToString("MM/dd/yyyy") - @paySchedule.NextPeriodEndDate.ToString("MM/dd/yyyy")</td>
+                                            <td>
+                                                <span class="badge @(paySchedule.IsActive ? "bg-success" : "bg-secondary")">
+                                                    @(paySchedule.IsActive ? "Active" : "Inactive")
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private readonly PayScheduleSetupModel formModel = PayScheduleSetupModel.CreateDefault();
+    private List<Company> companies = new();
+    private List<PaySchedule> paySchedules = new();
+    private bool isLoading = true;
+    private bool isSaving;
+    private string successMessage = string.Empty;
+    private string errorMessage = string.Empty;
+
+    private PaySchedule? previewSchedule
+    {
+        get
+        {
+            if (formModel.NextPeriodEndDate < formModel.NextPeriodStartDate)
+            {
+                return null;
+            }
+
+            var preview = new PaySchedule
+            {
+                CompanyId = formModel.CompanyId,
+                Name = formModel.Name,
+                Frequency = formModel.Frequency,
+                NextPayDate = formModel.NextPayDate.Date,
+                NextPeriodStartDate = formModel.NextPeriodStartDate.Date,
+                NextPeriodEndDate = formModel.NextPeriodEndDate.Date,
+                IsActive = formModel.IsActive
+            };
+
+            PayScheduleService.CalculateNextPayPeriod(preview);
+            return preview;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            companies = await CompanyService.GetAllActiveCompaniesAsync();
+
+            if (companies.Count == 1)
+            {
+                formModel.CompanyId = companies[0].CompanyId;
+                await LoadPaySchedules();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Unable to load pay schedule setup data: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task OnCompanyChanged(ChangeEventArgs args)
+    {
+        formModel.CompanyId = int.TryParse(args.Value?.ToString(), out var companyId) ? companyId : 0;
+        successMessage = string.Empty;
+        errorMessage = string.Empty;
+        await LoadPaySchedules();
+    }
+
+    private async Task LoadPaySchedules()
+    {
+        if (formModel.CompanyId == 0)
+        {
+            paySchedules.Clear();
+            return;
+        }
+
+        paySchedules = await PayScheduleService.GetPaySchedulesByCompanyAsync(formModel.CompanyId);
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        isSaving = true;
+        successMessage = string.Empty;
+        errorMessage = string.Empty;
+
+        try
+        {
+            var paySchedule = new PaySchedule
+            {
+                CompanyId = formModel.CompanyId,
+                Name = formModel.Name.Trim(),
+                Frequency = formModel.Frequency,
+                NextPayDate = formModel.NextPayDate.Date,
+                NextPeriodStartDate = formModel.NextPeriodStartDate.Date,
+                NextPeriodEndDate = formModel.NextPeriodEndDate.Date,
+                IsActive = formModel.IsActive
+            };
+
+            await PayScheduleService.CreatePayScheduleAsync(paySchedule);
+            successMessage = "Pay schedule created. Confirm pay schedule dates before processing payroll.";
+            ResetFormForCompany(formModel.CompanyId);
+            await LoadPaySchedules();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Unable to create pay schedule: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void ResetFormForCompany(int companyId)
+    {
+        var defaults = PayScheduleSetupModel.CreateDefault();
+        formModel.CompanyId = companyId;
+        formModel.Name = defaults.Name;
+        formModel.Frequency = defaults.Frequency;
+        formModel.NextPayDate = defaults.NextPayDate;
+        formModel.NextPeriodStartDate = defaults.NextPeriodStartDate;
+        formModel.NextPeriodEndDate = defaults.NextPeriodEndDate;
+        formModel.IsActive = defaults.IsActive;
+    }
+
+    private static string GetFrequencyName(PayFrequency frequency)
+    {
+        return frequency switch
+        {
+            PayFrequency.Biweekly => "Biweekly",
+            PayFrequency.Semimonthly => "Semimonthly",
+            PayFrequency.Monthly => "Monthly",
+            _ => "Weekly"
+        };
+    }
+
+    private sealed class PayScheduleSetupModel : IValidatableObject
+    {
+        [Range(1, int.MaxValue, ErrorMessage = "Select a company.")]
+        public int CompanyId { get; set; }
+
+        [Required]
+        [StringLength(100)]
+        public string Name { get; set; } = string.Empty;
+
+        [Required]
+        public PayFrequency Frequency { get; set; }
+
+        [Required]
+        public DateTime NextPayDate { get; set; }
+
+        [Required]
+        public DateTime NextPeriodStartDate { get; set; }
+
+        [Required]
+        public DateTime NextPeriodEndDate { get; set; }
+
+        public bool IsActive { get; set; } = true;
+
+        public static PayScheduleSetupModel CreateDefault()
+        {
+            var today = DateTime.Today;
+            var periodStart = today;
+            var periodEnd = today.AddDays(6);
+
+            return new PayScheduleSetupModel
+            {
+                Frequency = PayFrequency.Weekly,
+                NextPayDate = periodEnd.AddDays(1),
+                NextPeriodStartDate = periodStart,
+                NextPeriodEndDate = periodEnd,
+                IsActive = true
+            };
+        }
+
+        public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+        {
+            if (NextPeriodEndDate.Date < NextPeriodStartDate.Date)
+            {
+                yield return new ValidationResult(
+                    "Next period end date must be on or after the next period start date.",
+                    new[] { nameof(NextPeriodEndDate) });
+            }
+
+            if (NextPayDate.Date < NextPeriodEndDate.Date)
+            {
+                yield return new ValidationResult(
+                    "Next pay date must be on or after the next period end date.",
+                    new[] { nameof(NextPayDate) });
+            }
+        }
+    }
+}

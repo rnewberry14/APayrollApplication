@@ -1,0 +1,140 @@
+@page "/demo/seed-data"
+@using ClearPathPayroll.Configuration
+@using ClearPathPayroll.Services
+@using Microsoft.Extensions.Hosting
+@using Microsoft.Extensions.Options
+@inject DemoDataSeeder DemoDataSeeder
+@inject IHostEnvironment HostEnvironment
+@inject IOptions<LimitedLiabilityModeOptions> LimitedLiabilityOptions
+
+<PageTitle>Demo Data - ClearPath Payroll</PageTitle>
+
+<div class="container-fluid mt-4">
+    <NoAdviceDisclaimer />
+
+    <h1>Demo Data</h1>
+
+    <div class="alert alert-warning" role="alert">
+        Demo data is fake and must not be used for real payroll.
+    </div>
+
+    @if (!IsAllowed)
+    {
+        <div class="alert alert-danger" role="alert">
+            Demo data seeding is only available in Development or Local-Only Mode.
+        </div>
+    }
+    else
+    {
+        <p class="text-muted">
+            Create or clear local fake payroll data for manual review, testing, and documentation.
+            This page does not call tax APIs, ACH APIs, or any external submission service.
+        </p>
+
+        <div class="mb-3">
+            <button class="btn btn-primary me-2" @onclick="CreateDemoData" disabled="@isProcessing">
+                @if (isProcessing)
+                {
+                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                }
+                Create Demo Data
+            </button>
+
+            <button class="btn btn-outline-danger" @onclick="ClearDemoData" disabled="@isProcessing">
+                @if (isProcessing)
+                {
+                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                }
+                Clear Demo Data
+            </button>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(statusMessage))
+        {
+            <div class="alert @statusClass" role="status">@statusMessage</div>
+        }
+
+        @if (result != null)
+        {
+            <div class="card">
+                <div class="card-header bg-light">
+                    Demo Data Summary
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-3">Company</dt>
+                        <dd class="col-sm-9">@result.CompanyName</dd>
+
+                        <dt class="col-sm-3">Employees</dt>
+                        <dd class="col-sm-9">@result.EmployeeCount</dd>
+
+                        <dt class="col-sm-3">Pay schedule ID</dt>
+                        <dd class="col-sm-9">@result.PayScheduleId</dd>
+
+                        <dt class="col-sm-3">Draft payroll run ID</dt>
+                        <dd class="col-sm-9">@result.PayrollRunId</dd>
+                    </dl>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private DemoDataSeederResult? result;
+    private bool isProcessing;
+    private string statusMessage = string.Empty;
+    private string statusClass = "alert-secondary";
+
+    private bool IsAllowed => HostEnvironment.IsDevelopment() || LimitedLiabilityOptions.Value.Enabled;
+
+    private async Task CreateDemoData()
+    {
+        isProcessing = true;
+        statusMessage = string.Empty;
+        statusClass = "alert-secondary";
+
+        try
+        {
+            result = await DemoDataSeeder.CreateDemoDataAsync();
+            statusMessage = result.Message;
+            statusClass = result.AlreadyExists ? "alert-info" : "alert-success";
+        }
+        catch (Exception ex)
+        {
+            result = null;
+            statusMessage = $"Unable to create demo data: {ex.Message}";
+            statusClass = "alert-danger";
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task ClearDemoData()
+    {
+        isProcessing = true;
+        statusMessage = string.Empty;
+        statusClass = "alert-secondary";
+        result = null;
+
+        try
+        {
+            var cleared = await DemoDataSeeder.ClearDemoDataAsync();
+            statusMessage = cleared
+                ? "Demo data cleared from the local database."
+                : "No demo data was found in the local database.";
+            statusClass = cleared ? "alert-success" : "alert-info";
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Unable to clear demo data: {ex.Message}";
+            statusClass = "alert-danger";
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+}
