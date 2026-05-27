@@ -1,5 +1,5 @@
+@page "/payroll/paystub/{PayrollRunEmployeeId:int}"
 @page "/paystub/{PayrollRunId:int}/{EmployeeId:int}"
-@using ClearPathPayroll.Domain
 @using ClearPathPayroll.Services
 @inject PayStubService PayStubService
 @inject NavigationManager NavigationManager
@@ -22,153 +22,270 @@
     }
     else
     {
-        <div class="row mb-3 no-print">
-            <div class="col-md-6">
-                <h2>Pay Stub</h2>
-                <p class="text-muted">Printable employee pay stub for payroll run #@payStub.PayrollRunId</p>
+        <div class="no-print mb-3">
+            <NoAdviceDisclaimer />
+            <div class="alert alert-info" role="note">
+                Review applicable pay statement requirements before distribution. Settings below are configurable display placeholders and do not certify pay statement requirements.
             </div>
-            <div class="col-md-6 text-end no-print">
-                <button class="btn btn-secondary me-2" @onclick="PrintPayStub">Print</button>
-                <button class="btn btn-outline-secondary" @onclick="GoBack">Back</button>
+            <div class="d-flex flex-wrap gap-3 align-items-center mb-3">
+                <label class="form-check"><input type="checkbox" class="form-check-input" @bind="settings.ShowHours" /> Show hours</label>
+                <label class="form-check"><input type="checkbox" class="form-check-input" @bind="settings.ShowRates" /> Show rates</label>
+                <label class="form-check"><input type="checkbox" class="form-check-input" @bind="settings.ShowYtd" /> Show YTD</label>
+                <label class="form-check"><input type="checkbox" class="form-check-input" @bind="settings.ShowEmployerTaxes" /> Show employer taxes</label>
+                <label class="form-check"><input type="checkbox" class="form-check-input" @bind="settings.ShowEmployeeAddress" /> Show employee address</label>
+                <label class="form-check"><input type="checkbox" class="form-check-input" @bind="settings.ShowAccrualPlaceholders" /> Show accrual placeholders</label>
+                <label class="form-check"><input type="checkbox" class="form-check-input" @bind="settings.ShowStateRequiredFieldsChecklistPlaceholder" /> State-required-fields checklist placeholder</label>
             </div>
+            <button class="btn btn-secondary me-2" @onclick="PrintPayStub">Print Pay Stub</button>
+            <a class="btn btn-outline-primary me-2" href="/help?article=printing-pay-stubs">Help</a>
+            <button class="btn btn-outline-secondary" @onclick="GoBack">Back</button>
         </div>
 
-        <div class="card mb-4">
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <p class="mb-1 text-muted">Company</p>
-                        <h4>@payStub.CompanyName</h4>
-                    </div>
-                    <div class="col-md-6 text-md-end">
-                        <p class="mb-1 text-muted">Employee</p>
-                        <h4>@payStub.EmployeeName</h4>
-                        <p class="mb-0 text-muted">SSN: ***-**-@payStub.SsnLast4</p>
-                    </div>
+        <section class="paystub-sheet">
+            <div class="paystub-header">
+                <div>
+                    <h2>@payStub.CompanyName</h2>
+                    <pre class="address-block">@payStub.CompanyAddress</pre>
                 </div>
-                <div class="row mt-3">
-                    <div class="col-md-4">
-                        <p class="mb-1 text-muted">Pay Period</p>
-                        <p class="lead">@payStub.PayPeriodStart.ToString("MM/dd/yyyy") - @payStub.PayPeriodEnd.ToString("MM/dd/yyyy")</p>
-                    </div>
-                    <div class="col-md-4">
-                        <p class="mb-1 text-muted">Pay Date</p>
-                        <p class="lead">@payStub.PayDate.ToString("MM/dd/yyyy")</p>
-                    </div>
-                    <div class="col-md-4">
-                        <p class="mb-1 text-muted">Direct Deposit</p>
-                        <p class="lead">Last 4: @payStub.DirectDepositLast4</p>
-                    </div>
+                <div class="text-end">
+                    <h3>Pay Stub</h3>
+                    <div>Pay date: @payStub.PayDate.ToString("MM/dd/yyyy")</div>
+                    <div>Employee ID: @payStub.EmployeeId</div>
+                    <div>SSN last 4: @payStub.SsnLast4</div>
                 </div>
             </div>
-        </div>
 
-        <div class="row">
-            <div class="col-lg-4 mb-4">
-                <div class="card h-100">
-                    <div class="card-header bg-light">
-                        <h6 class="mb-0">Earnings</h6>
-                    </div>
-                    <div class="card-body">
-                        @if (payStub.Earnings.Count == 0)
-                        {
-                            <p class="text-muted">No earnings recorded.</p>
-                        }
-                        else
-                        {
-                            <ul class="list-group list-group-flush">
-                                @foreach (var line in payStub.Earnings)
-                                {
-                                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                                        <span>@line.Description</span>
-                                        <span>@line.Amount.ToString("C")</span>
-                                    </li>
-                                }
-                            </ul>
-                        }
-                    </div>
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="section-label">Employee</div>
+                    <h4>@payStub.EmployeeName</h4>
+                    @if (settings.ShowEmployeeAddress)
+                    {
+                        <pre class="address-block">@payStub.EmployeeAddress</pre>
+                    }
+                </div>
+                <div class="col-md-6">
+                    <div class="section-label">Pay period</div>
+                    <div>@payStub.PayPeriodStart.ToString("MM/dd/yyyy") - @payStub.PayPeriodEnd.ToString("MM/dd/yyyy")</div>
+                    <div class="mt-2">Payment method: @payStub.PaymentMethod</div>
+                    @if (payStub.PaymentMethod == "DirectDeposit")
+                    {
+                        <div>Direct deposit last 4 only: @payStub.DirectDepositLast4</div>
+                    }
+                    else if (!string.IsNullOrWhiteSpace(payStub.CheckNumberPlaceholder))
+                    {
+                        <div>Check number: @payStub.CheckNumberPlaceholder</div>
+                    }
                 </div>
             </div>
-            <div class="col-lg-4 mb-4">
-                <div class="card h-100">
-                    <div class="card-header bg-light">
-                        <h6 class="mb-0">Taxes</h6>
-                    </div>
-                    <div class="card-body">
-                        @if (payStub.EmployeeTaxes.Count == 0)
-                        {
-                            <p class="text-muted">No taxes recorded.</p>
-                        }
-                        else
-                        {
-                            <ul class="list-group list-group-flush">
-                                @foreach (var line in payStub.EmployeeTaxes)
-                                {
-                                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                                        <span>@line.Description</span>
-                                        <span>@line.Amount.ToString("C")</span>
-                                    </li>
-                                }
-                            </ul>
-                        }
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-4 mb-4">
-                <div class="card h-100">
-                    <div class="card-header bg-light">
-                        <h6 class="mb-0">Deductions</h6>
-                    </div>
-                    <div class="card-body">
-                        @if (payStub.Deductions.Count == 0)
-                        {
-                            <p class="text-muted">No deductions recorded.</p>
-                        }
-                        else
-                        {
-                            <ul class="list-group list-group-flush">
-                                @foreach (var line in payStub.Deductions)
-                                {
-                                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                                        <span>@line.Description</span>
-                                        <span>@line.Amount.ToString("C")</span>
-                                    </li>
-                                }
-                            </ul>
-                        }
-                    </div>
-                </div>
-            </div>
-        </div>
 
-        <div class="card mb-4">
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-4">
-                        <p class="text-muted mb-1">Net Pay</p>
-                        <h3 class="text-success">@payStub.NetPay.ToString("C")</h3>
+            @if (settings.ShowStateRequiredFieldsChecklistPlaceholder)
+            {
+                <div class="alert alert-warning print-alert" role="note">
+                    @payStub.RequiredFieldsChecklistPlaceholder
+                </div>
+            }
+
+            <div class="stub-section">
+                <h5>Earnings Detail</h5>
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Description</th>
+                            @if (settings.ShowHours)
+                            {
+                                <th class="text-end">Hours</th>
+                            }
+                            @if (settings.ShowRates)
+                            {
+                                <th class="text-end">Rate</th>
+                            }
+                            <th class="text-end">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var line in payStub.Earnings)
+                        {
+                            <tr>
+                                <td>@line.Description</td>
+                                @if (settings.ShowHours)
+                                {
+                                    <td class="text-end">@(line.Hours?.ToString("0.##") ?? "")</td>
+                                }
+                                @if (settings.ShowRates)
+                                {
+                                    <td class="text-end">@(line.Rate?.ToString("C") ?? "")</td>
+                                }
+                                <td class="text-end">@line.Amount.ToString("C")</td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <th>Gross pay</th>
+                            @if (settings.ShowHours)
+                            {
+                                <th></th>
+                            }
+                            @if (settings.ShowRates)
+                            {
+                                <th></th>
+                            }
+                            <th class="text-end">@payStub.GrossPay.ToString("C")</th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <div class="row">
+                <div class="col-lg-6">
+                    <div class="stub-section">
+                        <h5>Employee Taxes</h5>
+                        @RenderLineTable(payStub.EmployeeTaxes, "No employee taxes recorded.")
                     </div>
-                    <div class="col-md-8">
-                        <p class="text-muted mb-1">Year-to-date Totals</p>
-                        <p class="mb-1">@payStub.YtdTotalsPlaceholder</p>
-                        <div class="row">
-                            <div class="col-sm-6">
-                                <div class="fw-bold">Gross</div>
-                                <div>@payStub.YtdGrossPay.ToString("C")</div>
-                            </div>
-                            <div class="col-sm-6">
-                                <div class="fw-bold">Net</div>
-                                <div>@payStub.YtdNetPay.ToString("C")</div>
-                            </div>
-                        </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="stub-section">
+                        <h5>Pre-Tax Deductions</h5>
+                        @RenderLineTable(payStub.PreTaxDeductions, "No pre-tax deductions recorded.")
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="stub-section">
+                        <h5>Post-Tax Deductions</h5>
+                        @RenderLineTable(payStub.PostTaxDeductions, "No post-tax deductions recorded.")
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="stub-section">
+                        <h5>Reimbursements</h5>
+                        @RenderLineTable(payStub.Reimbursements, "No reimbursements recorded.")
                     </div>
                 </div>
             </div>
-        </div>
+
+            @if (settings.ShowEmployerTaxes)
+            {
+                <div class="stub-section internal-section">
+                    <h5>Employer Taxes Optional/Internal Section</h5>
+                    @RenderLineTable(payStub.EmployerTaxes, "No employer taxes recorded.")
+                </div>
+            }
+
+            <div class="totals-band">
+                <div>
+                    <span>Gross pay</span>
+                    <strong>@payStub.GrossPay.ToString("C")</strong>
+                </div>
+                <div>
+                    <span>Employee taxes</span>
+                    <strong>@payStub.EmployeeTaxes.Sum(line => line.Amount).ToString("C")</strong>
+                </div>
+                <div>
+                    <span>Deductions</span>
+                    <strong>@payStub.Deductions.Sum(line => line.Amount).ToString("C")</strong>
+                </div>
+                <div>
+                    <span>Reimbursements</span>
+                    <strong>@payStub.Reimbursements.Sum(line => line.Amount).ToString("C")</strong>
+                </div>
+                <div>
+                    <span>Net pay</span>
+                    <strong>@payStub.NetPay.ToString("C")</strong>
+                </div>
+            </div>
+
+            @if (settings.ShowYtd)
+            {
+                <div class="stub-section">
+                    <h5>Year-to-Date Placeholders</h5>
+                    <p class="text-muted">@payStub.YtdTotalsPlaceholder</p>
+                    <div class="row">
+                        <div class="col-md-3">Gross: @payStub.YtdGrossPay.ToString("C")</div>
+                        <div class="col-md-3">Taxes: @payStub.YtdTaxes.ToString("C")</div>
+                        <div class="col-md-3">Deductions: @payStub.YtdDeductions.ToString("C")</div>
+                        <div class="col-md-3">Net pay: @payStub.YtdNetPay.ToString("C")</div>
+                    </div>
+                </div>
+            }
+
+            @if (settings.ShowAccrualPlaceholders)
+            {
+                <div class="stub-section">
+                    <h5>Accrual Placeholders</h5>
+                    <p class="text-muted">@payStub.AccrualsPlaceholder</p>
+                </div>
+            }
+
+            <div class="stub-section">
+                <h5>Employer Notes</h5>
+                <p>@(string.IsNullOrWhiteSpace(payStub.EmployerNotes) ? "No employer notes entered." : payStub.EmployerNotes)</p>
+            </div>
+
+            <div class="small text-muted">
+                ClearPath Payroll does not provide legal, tax, financial, accounting, or payroll compliance advice. Review applicable pay statement requirements before distribution.
+            </div>
+        </section>
     }
 </div>
 
 <style>
+    .paystub-sheet {
+        max-width: 1000px;
+        margin: 0 auto 2rem auto;
+        padding: 1.5rem;
+        border: 1px solid #777;
+        background: #fff;
+        color: #111;
+    }
+
+    .paystub-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        border-bottom: 2px solid #333;
+        padding-bottom: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .address-block {
+        margin: 0;
+        font-family: inherit;
+        white-space: pre-wrap;
+        background: transparent;
+        border: 0;
+        padding: 0;
+    }
+
+    .section-label {
+        color: #666;
+        font-size: .875rem;
+        text-transform: uppercase;
+    }
+
+    .stub-section {
+        margin-bottom: 1.25rem;
+    }
+
+    .internal-section {
+        border: 1px dashed #999;
+        padding: .75rem;
+    }
+
+    .totals-band {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: .75rem;
+        padding: .75rem;
+        border: 1px solid #ccc;
+        margin-bottom: 1.25rem;
+    }
+
+    .totals-band div {
+        display: flex;
+        flex-direction: column;
+    }
+
     @@media print {
         .no-print {
             display: none !important;
@@ -179,21 +296,33 @@
             color: #000;
         }
 
-        .card {
-            border: 1px solid #ddd;
-            box-shadow: none;
+        .paystub-sheet {
+            max-width: none;
+            margin: 0;
+            border: 0;
+            padding: 0;
+        }
+
+        .print-alert {
+            border: 1px solid #999;
+            color: #000;
+            background: #fff;
         }
     }
 </style>
 
 @code {
     [Parameter]
-    public int PayrollRunId { get; set; }
+    public int PayrollRunEmployeeId { get; set; }
 
     [Parameter]
-    public int EmployeeId { get; set; }
+    public int? PayrollRunId { get; set; }
+
+    [Parameter]
+    public int? EmployeeId { get; set; }
 
     private PayStubModel? payStub;
+    private PayStubPrintSettings settings = new();
     private bool isLoading = true;
     private string errorMessage = string.Empty;
 
@@ -209,7 +338,9 @@
 
         try
         {
-            payStub = await PayStubService.GetPayStubAsync(PayrollRunId, EmployeeId);
+            payStub = PayrollRunEmployeeId > 0
+                ? await PayStubService.GetPayStubByPayrollRunEmployeeIdAsync(PayrollRunEmployeeId)
+                : await PayStubService.GetPayStubAsync(PayrollRunId.GetValueOrDefault(), EmployeeId.GetValueOrDefault());
         }
         catch (Exception ex)
         {
@@ -230,4 +361,35 @@
     {
         NavigationManager.NavigateTo("/");
     }
+
+    private static RenderFragment RenderLineTable(List<PayStubLineItem> lines, string emptyText) => builder =>
+    {
+        if (lines.Count == 0)
+        {
+            builder.OpenElement(0, "p");
+            builder.AddAttribute(1, "class", "text-muted");
+            builder.AddContent(2, emptyText);
+            builder.CloseElement();
+            return;
+        }
+
+        builder.OpenElement(3, "table");
+        builder.AddAttribute(4, "class", "table table-sm");
+        builder.OpenElement(5, "tbody");
+        var sequence = 6;
+        foreach (var line in lines)
+        {
+            builder.OpenElement(sequence++, "tr");
+            builder.OpenElement(sequence++, "td");
+            builder.AddContent(sequence++, line.Description);
+            builder.CloseElement();
+            builder.OpenElement(sequence++, "td");
+            builder.AddAttribute(sequence++, "class", "text-end");
+            builder.AddContent(sequence++, line.Amount.ToString("C"));
+            builder.CloseElement();
+            builder.CloseElement();
+        }
+        builder.CloseElement();
+        builder.CloseElement();
+    };
 }

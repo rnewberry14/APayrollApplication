@@ -92,6 +92,11 @@ builder.Services.AddOptions<PrototypeModeOptions>()
     .Validate(options => !builder.Environment.IsProduction() || !options.Enabled, "Prototype Mode may not be enabled in production.")
     .ValidateOnStart();
 
+builder.Services.AddOptions<LimitedLiabilityModeOptions>()
+    .Bind(builder.Configuration.GetSection("LimitedLiabilityMode"))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
 var prototypeOptions = builder.Configuration.GetSection("PrototypeMode").Get<PrototypeModeOptions>() ?? new PrototypeModeOptions();
 var localPrototypeEnabled = PrototypeModeHelper.ShouldUseLocalPrototypeMode(builder.Environment, prototypeOptions);
 var localPrototypeConnectionString = string.Empty;
@@ -128,6 +133,10 @@ builder.Services.AddScoped<IAchPaymentService, FakeAchPaymentService>();
 
 // Register services
 builder.Services.AddScoped<CompanyService>();
+builder.Services.AddScoped<PayrollItemService>();
+builder.Services.AddScoped<UserDefinedFieldService>();
+builder.Services.AddSingleton<PayrollFieldTemplateCatalog>();
+builder.Services.AddSingleton<QuickBooksImportTemplateCatalog>();
 builder.Services.AddScoped<EmployeeService>();
 builder.Services.AddScoped<PayScheduleService>();
 builder.Services.AddScoped<PayrollService>();
@@ -136,10 +145,24 @@ builder.Services.AddScoped<TaxLiabilityReportService>();
 builder.Services.AddScoped<GrossPayCalculationService>();
 builder.Services.AddScoped<DeductionCalculationService>();
 builder.Services.AddScoped<PayrollCalculationService>();
+builder.Services.AddScoped<CheckCalculationPreviewService>();
 builder.Services.AddScoped<PayrollApprovalService>();
 builder.Services.AddScoped<DirectDepositSubmissionService>();
 builder.Services.AddScoped<PayStubService>();
+builder.Services.AddScoped<PaycheckPrintService>();
 builder.Services.AddScoped<SeedDataService>();
+builder.Services.AddScoped<DemoDataSeeder>();
+builder.Services.AddScoped<OfficialSourceService>();
+builder.Services.AddScoped<IImportFileParser, CsvImportFileParser>();
+builder.Services.AddScoped<IImportFileParser, TabDelimitedImportFileParser>();
+builder.Services.AddScoped<IImportFileParser, ExcelImportFileParser>();
+builder.Services.AddScoped<ImportService>();
+builder.Services.AddScoped<EmployeesOnlyImportService>();
+builder.Services.AddScoped<ChecksImportService>();
+builder.Services.AddScoped<TaxDepositsImportService>();
+builder.Services.AddScoped<W2ImportService>();
+builder.Services.AddScoped<W2PdfTextParser>();
+builder.Services.AddScoped<W2PdfImportService>();
 
 var app = builder.Build();
 

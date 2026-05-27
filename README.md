@@ -31,6 +31,22 @@ ClearPath Payroll supports a local prototype mode during development. In `Develo
 7. Run the application: `dotnet run`
 8. Open https://localhost:5001 in your browser.
 
+## Building a Tester Package
+
+The tester package is for local demo/testing only.
+
+Tester package only. Do not use for real payroll. Do not enter real SSNs, bank account numbers, EINs, API keys, or live payroll data.
+
+From the repository root, run:
+
+```powershell
+.\packaging\build-tester-package.ps1
+```
+
+The script restores, builds, tests, publishes in Release mode, creates `dist\ClearPathPayroll-TesterPackage`, copies tester documentation, and creates `dist\ClearPathPayroll-TesterPackage.zip`.
+
+The package excludes repository metadata, source build folders, local database files, uploaded/imported source files, user secrets, and files containing common secret patterns. Review `packaging\package-manifest.md` for the included and excluded file list.
+
 ## MVP Scope
 
 The first version supports:

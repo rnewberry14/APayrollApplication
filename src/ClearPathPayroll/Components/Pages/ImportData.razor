@@ -1,0 +1,355 @@
+@page "/setup/imports"
+@using ClearPathPayroll.Domain
+@using ClearPathPayroll.Services
+@inject ImportService ImportService
+
+<PageTitle>File Import - ClearPath Payroll</PageTitle>
+
+<div class="container-fluid mt-4">
+    <NoAdviceDisclaimer />
+
+    <div class="alert alert-success" role="status">
+        <strong>Local import:</strong> Selected files are parsed in this app session and staged in the local database after validation. Files are not uploaded to cloud storage or transmitted externally.
+    </div>
+
+    <div class="alert alert-warning" role="alert">
+        Demo mode warning: imported data can represent real payroll records. Review the file source and contents before confirming an import into a demo database.
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-lg-8">
+            <h2>File Import</h2>
+            <p class="text-muted">Import CSV, tab-delimited text, or .xlsx worksheet data through a local review-and-confirm workflow.</p>
+        </div>
+        <div class="col-lg-4 text-lg-end">
+            <a class="btn btn-outline-secondary" href="/help?article=importing-employees">Help</a>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(statusMessage))
+    {
+        <div class="alert @statusClass" role="status">@statusMessage</div>
+    }
+
+    <div class="card mb-4">
+        <div class="card-header bg-light">1. Select Local File</div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label" for="importType">Import type</label>
+                    <select id="importType" class="form-select" @bind="selectedImportType">
+                        @foreach (var value in Enum.GetValues<ImportType>())
+                        {
+                            <option value="@value">@GetImportTypeLabel(value)</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label" for="localFile">Local file</label>
+                    <InputFile id="localFile" class="form-control" OnChange="OnFileSelected" />
+                    <div class="form-text">Supported formats: .csv, .txt, .tsv, .tab, and first worksheet of .xlsx.</div>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-check mt-4">
+                        <input class="form-check-input" type="checkbox" @bind="demoWarningAcknowledged" />
+                        Demo warning reviewed
+                    </label>
+                </div>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(selectedFileName))
+            {
+                <div class="mt-3 small text-muted">Selected file: @selectedFileName</div>
+            }
+        </div>
+    </div>
+
+    @if (parseResult != null)
+    {
+        <div class="card mb-4">
+            <div class="card-header bg-light">2. Map Columns</div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    Detected @parseResult.Columns.Count columns and @parseResult.Rows.Count data rows. Save happens only after validation and confirmation.
+                </div>
+
+                @foreach (var warning in parseResult.Warnings)
+                {
+                    <div class="alert alert-warning">@warning</div>
+                }
+
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th>Source column</th>
+                                <th>Target field</th>
+                                <th>Required</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var mapping in mappingInputs)
+                            {
+                                <tr>
+                                    <td>@mapping.SourceColumn</td>
+                                    <td>
+                                        <input class="form-control form-control-sm" list="targetFields" @bind="mapping.TargetField" />
+                                    </td>
+                                    <td>
+                                        <input class="form-check-input" type="checkbox" @bind="mapping.IsRequired" />
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <datalist id="targetFields">
+                    @foreach (var targetField in targetFields)
+                    {
+                        <option value="@targetField"></option>
+                    }
+                </datalist>
+
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary" @onclick="ValidateImport" disabled="@isWorking">Validate Rows</button>
+                    <button class="btn btn-outline-secondary" @onclick="ResetImport" disabled="@isWorking">Reset</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header bg-light">3. Preview</div>
+            <div class="table-responsive">
+                <table class="table table-striped table-sm mb-0">
+                    <thead>
+                        <tr>
+                            @foreach (var column in parseResult.Columns)
+                            {
+                                <th>@column</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in parseResult.Rows.Take(10))
+                        {
+                            <tr>
+                                @foreach (var column in parseResult.Columns)
+                                {
+                                    <td>@GetCell(row, column)</td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="card-footer small text-muted">Preview shows up to 10 rows. Sensitive row values are not written to application logs.</div>
+        </div>
+    }
+
+    @if (validatedBatch != null)
+    {
+        <div class="card mb-4">
+            <div class="card-header bg-light">4. Confirm Import</div>
+            <div class="card-body">
+                <dl class="row">
+                    <dt class="col-sm-3">Batch</dt>
+                    <dd class="col-sm-9">#@validatedBatch.ImportBatchId</dd>
+                    <dt class="col-sm-3">Status</dt>
+                    <dd class="col-sm-9">@validatedBatch.Status</dd>
+                    <dt class="col-sm-3">Rows</dt>
+                    <dd class="col-sm-9">@validatedBatch.RowCount total, @validatedBatch.ValidRowCount valid, @validatedBatch.ErrorCount errors</dd>
+                </dl>
+
+                @if (validatedBatch.Errors.Any())
+                {
+                    <div class="alert alert-danger">
+                        Resolve validation errors before confirming the import.
+                    </div>
+                    <ul>
+                        @foreach (var error in validatedBatch.Errors.Take(20))
+                        {
+                            <li>Row @(error.RowNumber?.ToString() ?? "batch"): @error.Message</li>
+                        }
+                    </ul>
+                }
+                else
+                {
+                    <div class="alert alert-success">Validation completed. The import is ready for local confirmation.</div>
+                    <button class="btn btn-success" @onclick="ConfirmImport" disabled="@isWorking">Confirm Import</button>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private static readonly string[] targetFields =
+    {
+        "Company.LegalName",
+        "Company.FEINMaskedOrPlaceholder",
+        "Company.State",
+        "Employee.EmployeeNumber",
+        "Employee.FirstName",
+        "Employee.LastName",
+        "Employee.SSNLast4",
+        "Employee.PayType",
+        "Employee.HourlyRate",
+        "Employee.AnnualSalary",
+        "Check.RegularHours",
+        "Check.GrossPay",
+        "TaxDeposit.Amount",
+        "TaxDeposit.PaymentDate"
+    };
+
+    private ImportType selectedImportType = ImportType.EmployeesOnly;
+    private ImportFileParseResult? parseResult;
+    private ImportBatch? validatedBatch;
+    private List<ImportMappingInput> mappingInputs = new();
+    private string selectedFileName = string.Empty;
+    private string statusMessage = string.Empty;
+    private string statusClass = "alert-info";
+    private bool demoWarningAcknowledged;
+    private bool isWorking;
+
+    private async Task OnFileSelected(InputFileChangeEventArgs args)
+    {
+        ResetMessages();
+        validatedBatch = null;
+        var file = args.File;
+        selectedFileName = file.Name;
+
+        try
+        {
+            isWorking = true;
+            await using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+            parseResult = await ImportService.ParseFileAsync(stream, file.Name);
+            mappingInputs = parseResult.Columns
+                .Select(column => new ImportMappingInput
+                {
+                    SourceColumn = column,
+                    TargetField = GuessTargetField(column),
+                    IsRequired = false
+                })
+                .ToList();
+            statusClass = "alert-success";
+            statusMessage = "File parsed locally. Review the preview and mappings before validation.";
+        }
+        catch (Exception ex)
+        {
+            parseResult = null;
+            mappingInputs.Clear();
+            statusClass = "alert-danger";
+            statusMessage = $"Unable to parse the local file: {ex.Message}";
+        }
+        finally
+        {
+            isWorking = false;
+        }
+    }
+
+    private async Task ValidateImport()
+    {
+        if (parseResult == null)
+        {
+            return;
+        }
+
+        ResetMessages();
+
+        try
+        {
+            isWorking = true;
+            validatedBatch = await ImportService.CreateStagedBatchAsync(
+                selectedFileName,
+                selectedImportType,
+                parseResult,
+                mappingInputs.Where(mapping => !string.IsNullOrWhiteSpace(mapping.TargetField)),
+                demoWarningAcknowledged);
+            statusClass = validatedBatch.ErrorCount == 0 ? "alert-success" : "alert-warning";
+            statusMessage = validatedBatch.ErrorCount == 0
+                ? "Rows validated locally. Confirm the import when the preview is acceptable."
+                : "Validation completed with blocking errors.";
+        }
+        catch (Exception ex)
+        {
+            statusClass = "alert-danger";
+            statusMessage = $"Unable to validate import: {ex.Message}";
+        }
+        finally
+        {
+            isWorking = false;
+        }
+    }
+
+    private async Task ConfirmImport()
+    {
+        if (validatedBatch == null)
+        {
+            return;
+        }
+
+        ResetMessages();
+
+        try
+        {
+            isWorking = true;
+            validatedBatch = await ImportService.ConfirmImportAsync(validatedBatch.ImportBatchId);
+            statusClass = "alert-success";
+            statusMessage = $"Import batch #{validatedBatch.ImportBatchId} confirmed and saved in the local database.";
+        }
+        catch (Exception ex)
+        {
+            statusClass = "alert-danger";
+            statusMessage = $"Unable to confirm import: {ex.Message}";
+        }
+        finally
+        {
+            isWorking = false;
+        }
+    }
+
+    private void ResetImport()
+    {
+        parseResult = null;
+        validatedBatch = null;
+        mappingInputs.Clear();
+        selectedFileName = string.Empty;
+        ResetMessages();
+    }
+
+    private void ResetMessages()
+    {
+        statusMessage = string.Empty;
+        statusClass = "alert-info";
+    }
+
+    private static string GetCell(Dictionary<string, string> row, string column)
+    {
+        return row.TryGetValue(column, out var value) ? value : string.Empty;
+    }
+
+    private static string GuessTargetField(string column)
+    {
+        var normalized = column.Replace(" ", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace("_", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace("-", string.Empty, StringComparison.OrdinalIgnoreCase);
+
+        return targetFields.FirstOrDefault(target => target.EndsWith(normalized, StringComparison.OrdinalIgnoreCase))
+            ?? column;
+    }
+
+    private static string GetImportTypeLabel(ImportType importType)
+    {
+        return importType switch
+        {
+            ImportType.EntireCompany => "Entire company import",
+            ImportType.EmployersOnly => "Employers only",
+            ImportType.EmployeesOnly => "Employees only",
+            ImportType.EmployeesAndChecksOnly => "Employees and checks only",
+            ImportType.ChecksOnly => "Checks only",
+            ImportType.TaxDepositsOnly => "Tax deposits only",
+            _ => importType.ToString()
+        };
+    }
+}

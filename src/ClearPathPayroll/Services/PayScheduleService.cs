@@ -27,6 +27,16 @@ public class PayScheduleService
             .ToListAsync();
     }
 
+    public async Task<List<PaySchedule>> GetPaySchedulesByCompanyAsync(int companyId)
+    {
+        return await _context.PaySchedules
+            .Where(p => p.CompanyId == companyId)
+            .Include(p => p.Company)
+            .OrderByDescending(p => p.IsActive)
+            .ThenBy(p => p.Name)
+            .ToListAsync();
+    }
+
     /// <summary>
     /// Gets a pay schedule by ID.
     /// </summary>

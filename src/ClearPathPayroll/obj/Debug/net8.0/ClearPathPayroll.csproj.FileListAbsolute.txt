@@ -139,3 +139,9 @@ D:\Richard\Git Repos\ClearPathPayroll\src\ClearPathPayroll\bin\Debug\net8.0\apps
 D:\Richard\Git Repos\ClearPathPayroll\src\ClearPathPayroll\bin\Debug\net8.0\Azure.Extensions.AspNetCore.Configuration.Secrets.dll
 D:\Richard\Git Repos\ClearPathPayroll\src\ClearPathPayroll\bin\Debug\net8.0\Azure.Security.KeyVault.Secrets.dll
 D:\Richard\Git Repos\ClearPathPayroll\src\ClearPathPayroll\bin\Debug\net8.0\System.ClientModel.dll
+D:\Richard\Git Repos\ClearPathPayroll\src\ClearPathPayroll\obj\Debug\net8.0\ClearPathPayroll.sourcelink.json
+D:\Richard\Git Repos\ClearPathPayroll\src\ClearPathPayroll\bin\Debug\net8.0\UglyToad.PdfPig.dll
+D:\Richard\Git Repos\ClearPathPayroll\src\ClearPathPayroll\bin\Debug\net8.0\UglyToad.PdfPig.Core.dll
+D:\Richard\Git Repos\ClearPathPayroll\src\ClearPathPayroll\bin\Debug\net8.0\UglyToad.PdfPig.Fonts.dll
+D:\Richard\Git Repos\ClearPathPayroll\src\ClearPathPayroll\bin\Debug\net8.0\UglyToad.PdfPig.Tokenization.dll
+D:\Richard\Git Repos\ClearPathPayroll\src\ClearPathPayroll\bin\Debug\net8.0\UglyToad.PdfPig.Tokens.dll

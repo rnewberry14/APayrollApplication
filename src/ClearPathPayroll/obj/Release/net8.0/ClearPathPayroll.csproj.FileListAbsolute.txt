@@ -139,3 +139,12 @@ D:\Richard\Git Repos\ClearPathPayroll\src\ClearPathPayroll\obj\Release\net8.0\re
 D:\Richard\Git Repos\ClearPathPayroll\src\ClearPathPayroll\obj\Release\net8.0\ClearPathPayroll.pdb
 D:\Richard\Git Repos\ClearPathPayroll\src\ClearPathPayroll\obj\Release\net8.0\ClearPathPayroll.genruntimeconfig.cache
 D:\Richard\Git Repos\ClearPathPayroll\src\ClearPathPayroll\obj\Release\net8.0\ref\ClearPathPayroll.dll
+C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd\95c3317e12c5848f\src\ClearPathPayroll\obj\Release\net8.0\ClearPathPayroll.dll
+C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd\95c3317e12c5848f\src\ClearPathPayroll\obj\Release\net8.0\refint\ClearPathPayroll.dll
+C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd\95c3317e12c5848f\src\ClearPathPayroll\obj\Release\net8.0\ClearPathPayroll.pdb
+D:\Richard\Git Repos\ClearPathPayroll\src\ClearPathPayroll\bin\Release\net8.0\UglyToad.PdfPig.dll
+D:\Richard\Git Repos\ClearPathPayroll\src\ClearPathPayroll\bin\Release\net8.0\UglyToad.PdfPig.Core.dll
+D:\Richard\Git Repos\ClearPathPayroll\src\ClearPathPayroll\bin\Release\net8.0\UglyToad.PdfPig.Fonts.dll
+D:\Richard\Git Repos\ClearPathPayroll\src\ClearPathPayroll\bin\Release\net8.0\UglyToad.PdfPig.Tokenization.dll
+D:\Richard\Git Repos\ClearPathPayroll\src\ClearPathPayroll\bin\Release\net8.0\UglyToad.PdfPig.Tokens.dll
+D:\Richard\Git Repos\ClearPathPayroll\src\ClearPathPayroll\obj\Release\net8.0\ClearPathPayroll.sourcelink.json

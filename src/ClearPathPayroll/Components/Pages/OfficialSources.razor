@@ -1,0 +1,163 @@
+@page "/official-sources"
+@using ClearPathPayroll.Services
+@inject OfficialSourceService OfficialSourceService
+
+<PageTitle>Official Source Excerpts</PageTitle>
+
+<div class="container-fluid py-4">
+    <NoAdviceDisclaimer />
+
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h1>Official Source Excerpts</h1>
+            <p class="text-muted mb-0">Official source excerpt records for local review tracking.</p>
+        </div>
+        <a class="btn btn-outline-secondary" href="/">Back to home</a>
+    </div>
+
+    <div class="alert alert-info" role="note">
+        Review the full official instructions. User is responsible for verifying applicability.
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(statusMessage))
+    {
+        <div class="alert @statusClass" role="status">@statusMessage</div>
+    }
+
+    @if (isLoading)
+    {
+        <div class="alert alert-info">Loading official source excerpts...</div>
+    }
+    else if (!sources.Any())
+    {
+        <div class="alert alert-secondary">No official source excerpts have been added.</div>
+    }
+    else
+    {
+        <div class="row g-3">
+            @foreach (var source in sources)
+            {
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header bg-light d-flex justify-content-between gap-3">
+                            <div>
+                                <div class="fw-semibold">Official source excerpt</div>
+                                <div>@source.Document.SourceName</div>
+                            </div>
+                            <button class="btn btn-sm btn-outline-primary"
+                                    @onclick="() => MarkReviewedAsync(source.Document.OfficialSourceDocumentId)"
+                                    disabled="@isProcessing">
+                                Mark reviewed
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            @if (source.NeedsCurrentnessWarning)
+                            {
+                                <div class="alert alert-warning" role="alert">
+                                    @OfficialSourceService.NotCurrentWarning
+                                </div>
+                            }
+
+                            @if (source.NeedsAgeReviewWarning)
+                            {
+                                <div class="alert alert-warning" role="alert">
+                                    @OfficialSourceService.AgeReviewWarning
+                                </div>
+                            }
+
+                            <dl class="row">
+                                <dt class="col-sm-3">Form/publication/instruction title</dt>
+                                <dd class="col-sm-9">@source.Document.PublicationTitle</dd>
+
+                                <dt class="col-sm-3">Revision date</dt>
+                                <dd class="col-sm-9">@FormatDate(source.Document.RevisionDate)</dd>
+
+                                <dt class="col-sm-3">Effective date</dt>
+                                <dd class="col-sm-9">@FormatDate(source.Document.EffectiveDate)</dd>
+
+                                <dt class="col-sm-3">Retrieved date</dt>
+                                <dd class="col-sm-9">@FormatDate(source.Document.RetrievedDate)</dd>
+
+                                <dt class="col-sm-3">Citation or official source link</dt>
+                                <dd class="col-sm-9">
+                                    @if (string.IsNullOrWhiteSpace(source.Document.OfficialSourceUrl))
+                                    {
+                                        <span>Not provided</span>
+                                    }
+                                    else
+                                    {
+                                        <a href="@source.Document.OfficialSourceUrl" target="_blank" rel="noopener noreferrer">
+                                            Review the full official instructions
+                                        </a>
+                                    }
+                                </dd>
+
+                                <dt class="col-sm-3">Last reviewed</dt>
+                                <dd class="col-sm-9">@FormatDateTime(source.LastReviewedAt)</dd>
+                            </dl>
+
+                            <div class="border rounded p-3 bg-light">
+                                <div class="fw-semibold mb-2">Official excerpt text</div>
+                                <pre class="mb-0 text-wrap">@source.Document.ExcerptText</pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private const string PlaceholderUserId = "local-prototype-user";
+    private List<OfficialSourceDisplayModel> sources = new();
+    private bool isLoading;
+    private bool isProcessing;
+    private string statusMessage = string.Empty;
+    private string statusClass = "alert-secondary";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSourcesAsync();
+    }
+
+    private async Task LoadSourcesAsync()
+    {
+        isLoading = true;
+        sources = await OfficialSourceService.GetOfficialSourcesAsync();
+        isLoading = false;
+    }
+
+    private async Task MarkReviewedAsync(int documentId)
+    {
+        isProcessing = true;
+        statusMessage = string.Empty;
+
+        try
+        {
+            await OfficialSourceService.MarkReviewedAsync(documentId, PlaceholderUserId);
+            await LoadSourcesAsync();
+            statusMessage = "Review recorded. Currentness was not automatically certified.";
+            statusClass = "alert-success";
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Unable to record review: {ex.Message}";
+            statusClass = "alert-danger";
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private static string FormatDate(DateTime? value)
+    {
+        return value?.ToString("MM/dd/yyyy") ?? "Not provided";
+    }
+
+    private static string FormatDateTime(DateTime? value)
+    {
+        return value?.ToString("MM/dd/yyyy h:mm tt") ?? "Not reviewed";
+    }
+}

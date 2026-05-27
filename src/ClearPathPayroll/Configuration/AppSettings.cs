@@ -74,6 +74,25 @@ public class PrototypeModeOptions
     public string LocalDbDatabaseName { get; set; } = "ClearPathPayroll.LocalPrototype";
 }
 
+public class LimitedLiabilityModeOptions
+{
+    public bool Enabled { get; set; }
+
+    public bool AllowExternalTaxApiLookup { get; set; }
+
+    public bool AllowRealAchSubmission { get; set; }
+
+    public bool AllowRealTaxFiling { get; set; }
+
+    public bool AllowTelemetry { get; set; }
+
+    [Required(ErrorMessage = "LocalDatabaseProvider is required for Limited Liability Mode.")]
+    public string LocalDatabaseProvider { get; set; } = LimitedLiabilityModeHelper.SqlServerLocalDbProvider;
+
+    [Required(ErrorMessage = "LocalDatabaseName is required for Limited Liability Mode.")]
+    public string LocalDatabaseName { get; set; } = "ClearPathPayroll.LocalOnly";
+}
+
 public class EmailOptions
 {
     public string Provider { get; set; } = "smtp";

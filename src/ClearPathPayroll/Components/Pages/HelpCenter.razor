@@ -1,0 +1,186 @@
+@page "/help"
+@using Microsoft.AspNetCore.WebUtilities
+@inject IWebHostEnvironment HostEnvironment
+@inject NavigationManager NavigationManager
+
+<PageTitle>Help Center - ClearPath Payroll</PageTitle>
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h1>Help Center</h1>
+            <p class="text-muted">Local tester documentation for the ClearPath Payroll demo.</p>
+        </div>
+        <a class="btn btn-outline-secondary" href="/">Back to home</a>
+    </div>
+
+    <div class="alert alert-warning">
+        <h2 class="h5">Tester Safety Rules</h2>
+        <ul class="mb-0">
+            <li>Tester package only. Do not use for real payroll.</li>
+            <li>Do not enter real SSNs, bank account numbers, EINs, API keys, or live payroll data.</li>
+            <li>Do not submit real ACH or real tax filings.</li>
+            <li>ClearPath Payroll does not provide legal, tax, financial, accounting, payroll compliance, or licensed professional advice.</li>
+        </ul>
+    </div>
+
+    <div class="d-flex flex-wrap gap-2 mb-4">
+        <a class="btn btn-primary" href="/help?article=manual-test-packet">Manual Test Packet</a>
+        <a class="btn btn-outline-primary" href="/help?article=tester-feedback-form">Tester Feedback Form</a>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <label class="form-label" for="help-search">Search help articles</label>
+            <input id="help-search" class="form-control" placeholder="Search by title, category, or route" @bind="searchText" @bind:event="oninput" />
+        </div>
+    </div>
+
+    @if (selectedArticle != null)
+    {
+        <article class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="text-muted small">@selectedArticle.Category</div>
+                    <h2 class="h4 mb-0">@selectedArticle.Title</h2>
+                </div>
+                <a class="btn btn-sm btn-outline-secondary" href="/help">Close article</a>
+            </div>
+            <div class="card-body">
+                @if (!string.IsNullOrWhiteSpace(articleError))
+                {
+                    <div class="alert alert-warning">@articleError</div>
+                }
+                else
+                {
+                    <pre class="help-article-content">@articleContent</pre>
+                }
+            </div>
+        </article>
+    }
+
+    @foreach (var group in FilteredArticles.GroupBy(article => article.Category))
+    {
+        <section class="mb-4">
+            <h2 class="h4">@group.Key</h2>
+            <div class="row g-3">
+                @foreach (var article in group)
+                {
+                    <div class="col-lg-4 col-md-6">
+                        <div class="card h-100">
+                            <div class="card-body">
+                                <h3 class="h5">@article.Title</h3>
+                                <p class="text-muted mb-2">@article.Description</p>
+                                @if (!string.IsNullOrWhiteSpace(article.Route))
+                                {
+                                    <div class="small mb-3">App page: <code>@article.Route</code></div>
+                                }
+                                <a class="btn btn-sm btn-outline-primary" href="/help?article=@article.Slug">Open article</a>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </section>
+    }
+</div>
+
+<style>
+    .help-article-content {
+        white-space: pre-wrap;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        font-size: 1rem;
+        line-height: 1.55;
+        background: #fff;
+        border: 0;
+        padding: 0;
+    }
+</style>
+
+@code {
+    private string searchText = string.Empty;
+    private HelpArticle? selectedArticle;
+    private string articleContent = string.Empty;
+    private string articleError = string.Empty;
+
+    private IEnumerable<HelpArticle> FilteredArticles
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(searchText))
+            {
+                return Articles;
+            }
+
+            return Articles.Where(article =>
+                article.Title.Contains(searchText, StringComparison.OrdinalIgnoreCase)
+                || article.Category.Contains(searchText, StringComparison.OrdinalIgnoreCase)
+                || article.Description.Contains(searchText, StringComparison.OrdinalIgnoreCase)
+                || (article.Route?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false));
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        var uri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
+        var query = QueryHelpers.ParseQuery(uri.Query);
+        var slug = query.TryGetValue("article", out var value) ? value.ToString() : string.Empty;
+        selectedArticle = Articles.FirstOrDefault(article => string.Equals(article.Slug, slug, StringComparison.OrdinalIgnoreCase));
+        LoadSelectedArticle();
+    }
+
+    private void LoadSelectedArticle()
+    {
+        articleContent = string.Empty;
+        articleError = string.Empty;
+        if (selectedArticle == null)
+        {
+            return;
+        }
+
+        var path = Path.Combine(HostEnvironment.ContentRootPath, selectedArticle.RelativePath);
+        if (!File.Exists(path))
+        {
+            articleError = "This local help article was not found in the tester package.";
+            return;
+        }
+
+        articleContent = File.ReadAllText(path);
+    }
+
+    private static readonly List<HelpArticle> Articles =
+    [
+        new("getting-started-local-demo", "Getting Started with the Local Demo", "Getting Started", "Start the tester package and open the local app.", "docs/help/articles/getting-started-local-demo.md", "/"),
+        new("local-demo-mode-explained", "Local Demo Mode Explained", "Getting Started", "Understand local demo mode and safety limits.", "docs/help/articles/local-demo-mode-explained.md", "/prototype-test-checklist"),
+        new("creating-demo-data", "Creating Demo Data", "Getting Started", "Create, clear, and recreate fake demo records.", "docs/help/articles/creating-demo-data.md", "/demo/seed-data"),
+        new("employer-setup", "Employer Setup", "Setup", "Add and edit demo employer records.", "docs/help/articles/employer-setup.md", "/setup/employer"),
+        new("employee-setup", "Employee Setup", "Setup", "Add and edit demo employee payroll profiles.", "docs/help/articles/employee-setup.md", "/setup/employees"),
+        new("direct-deposit-setup", "Direct Deposit Setup", "Setup", "Add fake direct deposit token records.", "docs/help/articles/direct-deposit-setup.md", "/setup/employees"),
+        new("pay-schedule-setup", "Pay Schedule Setup", "Setup", "Create demo pay schedules.", "docs/help/articles/pay-schedule-setup.md", "/setup/pay-schedules"),
+        new("user-defined-fields", "User-Defined Fields", "Setup", "Create optional custom payroll fields.", "docs/help/articles/user-defined-fields.md", "/setup/user-defined-fields"),
+        new("payroll-field-templates", "Payroll Field Templates", "Setup", "Activate optional payroll field templates.", "docs/help/articles/payroll-field-templates.md", "/setup/field-templates"),
+        new("creating-payroll-run", "Creating a Payroll Run", "Payroll Processing", "Create a draft payroll run.", "docs/help/articles/creating-payroll-run.md", "/payroll/create"),
+        new("calculating-checks-before-approval", "Calculating Checks Before Approval", "Payroll Processing", "Review and recalculate checks.", "docs/help/articles/calculating-checks-before-approval.md", "/payroll/check-calculation/{payrollRunId}"),
+        new("payroll-preview", "Payroll Preview", "Payroll Processing", "Review payroll totals, warnings, and errors.", "docs/help/articles/payroll-preview.md", "/payroll/preview/{payrollRunId}"),
+        new("approving-payroll", "Approving Payroll", "Payroll Processing", "Approve a valid demo payroll run.", "docs/help/articles/approving-payroll.md", "/payroll/preview/{payrollRunId}"),
+        new("fake-direct-deposit-submission", "Fake Direct Deposit Submission", "Payroll Processing", "Submit fake/sandbox direct deposit after approval.", "docs/help/articles/fake-direct-deposit-submission.md", "/payroll/preview/{payrollRunId}"),
+        new("printing-paychecks", "Printing Paychecks", "Payroll Processing", "Print demo paychecks for non-direct-deposit employees.", "docs/help/articles/printing-paychecks.md", "/payroll/paycheck/{payrollRunEmployeeId}"),
+        new("printing-pay-stubs", "Printing Pay Stubs", "Payroll Processing", "Print demo pay stubs.", "docs/help/articles/printing-pay-stubs.md", "/payroll/paystub/{payrollRunEmployeeId}"),
+        new("payroll-register", "Payroll Register", "Reports", "Review payroll run and employee summaries.", "docs/help/articles/payroll-register.md", "/reports/payroll-register"),
+        new("tax-liability-report", "Tax Liability Report", "Reports", "Review demo tax liability report placeholders.", "docs/help/articles/tax-liability-report.md", "/reports/tax-liability"),
+        new("importing-employees", "Importing Employees", "Imports", "Import demo employee files locally.", "docs/help/articles/importing-employees.md", "/import/employees"),
+        new("importing-payroll-checks", "Importing Payroll Checks", "Imports", "Import checks-only or employees-and-checks files.", "docs/help/articles/importing-payroll-checks.md", "/import/checks"),
+        new("importing-tax-deposits", "Importing Tax Deposits", "Imports", "Import user-entered demo tax deposit records.", "docs/help/articles/importing-tax-deposits.md", "/import/tax-deposits"),
+        new("importing-quickbooks-desktop-files", "Importing QuickBooks Desktop Files", "Imports", "Import local exported QuickBooks Desktop reports.", "docs/help/articles/importing-quickbooks-desktop-files.md", "/import/quickbooks-desktop"),
+        new("importing-quickbooks-online-files", "Importing QuickBooks Online Files", "Imports", "Import local exported QuickBooks Online files.", "docs/help/articles/importing-quickbooks-online-files.md", "/import/quickbooks-online"),
+        new("importing-w2-spreadsheet-files", "Importing W-2 Spreadsheet Files", "Imports", "Import reviewed historical W-2 spreadsheet data.", "docs/help/articles/importing-w2-spreadsheet-files.md", "/import/w2"),
+        new("importing-w2-pdf-files", "Importing W-2 PDF Files", "Imports", "Extract and review local text-based W-2 PDFs.", "docs/help/articles/importing-w2-pdf-files.md", "/import/w2-pdf"),
+        new("official-source-library", "Official Source Library", "Official Sources", "Review official source excerpts and citations.", "docs/help/articles/official-source-library.md", "/official-sources"),
+        new("troubleshooting-startup-problems", "Troubleshooting Startup Problems", "Troubleshooting", "Fix common local startup issues.", "docs/help/articles/troubleshooting-startup-problems.md"),
+        new("how-to-report-feedback", "How to Report Feedback", "Feedback", "Use tester feedback and bug report templates.", "docs/help/articles/how-to-report-feedback.md"),
+        new("manual-test-packet", "Manual Test Packet", "Feedback", "Printable manual testing checklist.", "docs/testing/MANUAL-TEST-PACKET.md"),
+        new("tester-feedback-form", "Tester Feedback Form", "Feedback", "Form for tester notes and issue details.", "docs/testing/TESTER-FEEDBACK-FORM.md")
+    ];
+
+    private sealed record HelpArticle(string Slug, string Title, string Category, string Description, string RelativePath, string? Route = null);
+}

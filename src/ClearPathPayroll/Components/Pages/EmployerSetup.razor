@@ -1,0 +1,250 @@
+@page "/setup/employer"
+@using System.ComponentModel.DataAnnotations
+@using ClearPathPayroll.Domain
+@using ClearPathPayroll.Services
+@inject CompanyService CompanyService
+
+<PageTitle>Employer Setup - ClearPath Payroll</PageTitle>
+
+<div class="container-fluid mt-4">
+    <NoAdviceDisclaimer />
+
+    <div class="alert alert-success" role="status">
+        <strong>Local Demo Mode:</strong> Employer setup data is stored in the local database. This page does not submit ACH, submit tax filings, or call production APIs.
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2>Employer Setup</h2>
+            <p class="text-muted">Add and edit local employer payroll information.</p>
+        </div>
+        <div class="col-md-4 text-md-end">
+            <a class="btn btn-outline-secondary me-2" href="/help?article=employer-setup">Help</a>
+            <button class="btn btn-primary" @onclick="StartNewEmployer">Add New Employer</button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(statusMessage))
+    {
+        <div class="alert @statusClass alert-dismissible fade show" role="status">
+            @statusMessage
+            <button type="button" class="btn-close" @onclick="() => statusMessage = string.Empty"></button>
+        </div>
+    }
+
+    <div class="row">
+        <div class="col-xl-4">
+            <div class="card mb-4">
+                <div class="card-header bg-light">Employers</div>
+                <div class="table-responsive">
+                    <table class="table table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th>Employer</th>
+                                <th>Status</th>
+                                <th class="text-end">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (companies.Count == 0)
+                            {
+                                <tr><td colspan="3" class="text-center text-muted">No employers found.</td></tr>
+                            }
+                            else
+                            {
+                                @foreach (var company in companies)
+                                {
+                                    <tr>
+                                        <td>
+                                            <strong>@company.LegalName</strong>
+                                            <div class="small text-muted">FEIN: @CompanyService.MaskFEIN(company.FEIN)</div>
+                                        </td>
+                                        <td>@(company.IsActive ? "Active" : "Inactive")</td>
+                                        <td class="text-end">
+                                            <button class="btn btn-sm btn-outline-primary" @onclick="() => EditEmployer(company.CompanyId)">Edit Employer</button>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-8">
+            @if (editingCompany == null)
+            {
+                <div class="alert alert-info">Select an employer or click Add New Employer.</div>
+            }
+            else
+            {
+                <EditForm Model="editingCompany" OnSubmit="SaveEmployer">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <div class="card mb-4">
+                        <div class="card-header bg-light">Employer Information</div>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Legal name</label>
+                                    <InputText class="form-control" @bind-Value="editingCompany.LegalName" />
+                                    <ValidationMessage For="() => editingCompany.LegalName" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">DBA name</label>
+                                    <InputText class="form-control" @bind-Value="editingCompany.DBAName" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">FEIN</label>
+                                    <InputText class="form-control" maxlength="10" @bind-Value="feinEntry" placeholder="00-0000000" />
+                                    @if (editingCompany.CompanyId > 0)
+                                    {
+                                        <div class="form-text">Saved FEIN: @CompanyService.MaskFEIN(editingCompany.FEIN)</div>
+                                    }
+                                    <ValidationMessage For="() => editingCompany.FEIN" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Payroll contact</label>
+                                    <InputText class="form-control" @bind-Value="editingCompany.PayrollContactName" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Phone</label>
+                                    <InputText class="form-control" @bind-Value="editingCompany.Phone" />
+                                    <ValidationMessage For="() => editingCompany.Phone" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Email</label>
+                                    <InputText class="form-control" @bind-Value="editingCompany.Email" />
+                                    <ValidationMessage For="() => editingCompany.Email" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Address</label>
+                                    <InputText class="form-control" @bind-Value="editingCompany.PrimaryAddress" />
+                                    <ValidationMessage For="() => editingCompany.PrimaryAddress" />
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">City</label>
+                                    <InputText class="form-control" @bind-Value="editingCompany.City" />
+                                    <ValidationMessage For="() => editingCompany.City" />
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">State</label>
+                                    <InputText class="form-control" maxlength="2" @bind-Value="editingCompany.State" />
+                                    <ValidationMessage For="() => editingCompany.State" />
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">ZIP</label>
+                                    <InputText class="form-control" @bind-Value="editingCompany.ZipCode" />
+                                    <ValidationMessage For="() => editingCompany.ZipCode" />
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">County</label>
+                                    <InputText class="form-control" @bind-Value="editingCompany.County" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Local tax locality placeholder</label>
+                                    <InputText class="form-control" @bind-Value="editingCompany.LocalTaxLocalityPlaceholder" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-check mt-4">
+                                        <InputCheckbox class="form-check-input" @bind-Value="editingCompany.IsActive" /> Active
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-footer d-flex gap-2">
+                            <button type="submit" class="btn btn-primary" disabled="@isSaving">Save</button>
+                            <button type="button" class="btn btn-outline-secondary" @onclick="CancelEdit" disabled="@isSaving">Cancel</button>
+                        </div>
+                    </div>
+                </EditForm>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<Company> companies = new();
+    private Company? editingCompany;
+    private string feinEntry = string.Empty;
+    private bool isSaving;
+    private string statusMessage = string.Empty;
+    private string statusClass = "alert-info";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCompanies();
+    }
+
+    private async Task LoadCompanies()
+    {
+        companies = await CompanyService.GetAllCompaniesAsync();
+    }
+
+    private void StartNewEmployer()
+    {
+        editingCompany = new Company
+        {
+            IsActive = true,
+            State = "OK",
+            CreatedAt = DateTime.UtcNow
+        };
+        feinEntry = string.Empty;
+        statusMessage = string.Empty;
+    }
+
+    private async Task EditEmployer(int companyId)
+    {
+        editingCompany = await CompanyService.GetCompanyByIdAsync(companyId);
+        feinEntry = string.Empty;
+        statusMessage = string.Empty;
+    }
+
+    private async Task SaveEmployer()
+    {
+        if (editingCompany == null)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(feinEntry))
+        {
+            editingCompany.FEIN = feinEntry.Trim();
+        }
+
+        isSaving = true;
+        statusMessage = string.Empty;
+
+        try
+        {
+            await CompanyService.SaveEmployerSetupAsync(editingCompany);
+            await LoadCompanies();
+            feinEntry = string.Empty;
+            statusClass = "alert-success";
+            statusMessage = "Employer setup saved locally. Verify with official agency records.";
+        }
+        catch (ValidationException ex)
+        {
+            statusClass = "alert-danger";
+            statusMessage = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            statusClass = "alert-danger";
+            statusMessage = $"Unable to save employer setup: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void CancelEdit()
+    {
+        editingCompany = null;
+        feinEntry = string.Empty;
+        statusMessage = string.Empty;
+    }
+}

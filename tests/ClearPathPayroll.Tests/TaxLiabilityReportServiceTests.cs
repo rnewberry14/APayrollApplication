@@ -65,6 +65,34 @@ public class TaxLiabilityReportServiceTests
     }
 
     [Fact]
+    public async Task GetTaxLiabilityReportAsync_IncludesUserEnteredDepositRecords()
+    {
+        var ctx = CreateInMemoryContext("tax_liability_deposits");
+        ctx.Companies.Add(new Company { CompanyId = 1, LegalName = "Alpha Co", FEIN = "123456789", PrimaryAddress = "1 Main St", City = "City", State = "CA", ZipCode = "90001", IsActive = true });
+        ctx.TaxDepositRecords.Add(new TaxDepositRecord
+        {
+            CompanyId = 1,
+            DepositDate = new DateTime(2026, 5, 20),
+            TaxPeriodStart = new DateTime(2026, 5, 1),
+            TaxPeriodEnd = new DateTime(2026, 5, 15),
+            TaxType = "Federal withholding",
+            Agency = "IRS",
+            Amount = 250m,
+            ConfirmationNumber = "CONF-123",
+            PaymentMethod = "EFTPS",
+            RecordSource = "User-entered deposit record"
+        });
+        await ctx.SaveChangesAsync();
+
+        var service = new TaxLiabilityReportService(ctx);
+        var report = await service.GetTaxLiabilityReportAsync(1, new DateTime(2026, 5, 1), new DateTime(2026, 5, 31));
+
+        Assert.Single(report.DepositRecords);
+        Assert.Equal("User-entered deposit record", report.DepositRecords.Single().RecordSource);
+        Assert.Equal(250m, report.TotalUserEnteredDeposits);
+    }
+
+    [Fact]
     public void BuildTaxLiabilityCsv_IncludesPlaceholderColumnsAndTotals()
     {
         var report = new TaxLiabilityReportModel
@@ -106,6 +134,7 @@ public class TaxLiabilityReportServiceTests
         Assert.Contains("Tax Liability Report", csv);
         Assert.Contains("Due Date", csv);
         Assert.Contains("Payment Status", csv);
+        Assert.Contains("User-entered deposit records", csv);
         Assert.Contains("Employee Withholding", csv);
         Assert.Contains("Employer Tax", csv);
         Assert.Contains("188.00", csv);

@@ -1,5 +1,6 @@
 using ClearPathPayroll.Configuration;
 using ClearPathPayroll.Data;
+using ClearPathPayroll.Domain;
 using ClearPathPayroll.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;

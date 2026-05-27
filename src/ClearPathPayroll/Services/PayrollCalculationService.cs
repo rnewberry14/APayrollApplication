@@ -635,6 +635,80 @@ public class PayrollCalculationService
         return result;
     }
 
+    public async Task<Dictionary<int, PayrollCalculationLineResult>> RecalculatePayrollRunAsync(
+        int payrollRunId,
+        string performedByUserId = "system")
+    {
+        if (!await CanRecalculatePayrollRunAsync(payrollRunId))
+        {
+            throw new InvalidOperationException($"Payroll run {payrollRunId} cannot be recalculated in its current status.");
+        }
+
+        var payrollRun = await _context.PayrollRuns
+            .Include(p => p.PayrollRunEmployees)
+                .ThenInclude(pre => pre.EarningLines)
+            .FirstOrDefaultAsync(p => p.PayrollRunId == payrollRunId);
+
+        if (payrollRun == null)
+        {
+            throw new InvalidOperationException($"Payroll run {payrollRunId} not found.");
+        }
+
+        if (!payrollRun.PayrollRunEmployees.Any())
+        {
+            throw new InvalidOperationException($"Payroll run {payrollRunId} has no employees to recalculate.");
+        }
+
+        await AddAuditLogAsync(
+            payrollRunId,
+            "PayrollRunRecalculationStarted",
+            $"Starting payroll run recalculation for {payrollRun.PayrollRunEmployees.Count} selected employee(s).",
+            performedByUserId);
+
+        var inputs = payrollRun.PayrollRunEmployees
+            .Select(pre => new
+            {
+                pre.EmployeeId,
+                HoursWorked = pre.EarningLines
+                    .Where(line => line.Hours.HasValue)
+                    .Sum(line => line.Hours),
+                ManualAdjustment = pre.EarningLines
+                    .Where(line => line.Description == "Manual gross pay adjustment" || line.Description == "Manual Adjustment")
+                    .Sum(line => line.Amount)
+            })
+            .ToList();
+
+        var results = new Dictionary<int, PayrollCalculationLineResult>();
+
+        foreach (var input in inputs)
+        {
+            var result = await RecalculatePayrollForEmployeeAsync(
+                payrollRunId,
+                input.EmployeeId,
+                new List<DeductionInput>(),
+                input.HoursWorked,
+                performedByUserId,
+                input.ManualAdjustment);
+
+            results[input.EmployeeId] = result;
+        }
+
+        var refreshedRun = await _context.PayrollRuns.FindAsync(payrollRunId);
+        if (refreshedRun != null && refreshedRun.Status == PayrollStatus.Draft)
+        {
+            refreshedRun.Status = PayrollStatus.Calculated;
+            await _context.SaveChangesAsync();
+        }
+
+        await AddAuditLogAsync(
+            payrollRunId,
+            "PayrollRunRecalculationCompleted",
+            $"Completed payroll run recalculation for {results.Count} selected employee(s).",
+            performedByUserId);
+
+        return results;
+    }
+
     public async Task UpdatePayrollRunTotalsAsync(int payrollRunId)
     {
         var payrollRun = await _context.PayrollRuns

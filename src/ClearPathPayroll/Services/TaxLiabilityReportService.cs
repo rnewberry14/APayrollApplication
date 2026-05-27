@@ -108,6 +108,46 @@ public class TaxLiabilityReportService
             }).ToList()
         };
 
+        var depositQuery = _context.TaxDepositRecords
+            .AsNoTracking()
+            .Include(deposit => deposit.Company)
+            .AsQueryable();
+
+        if (companyId.HasValue)
+        {
+            depositQuery = depositQuery.Where(deposit => deposit.CompanyId == companyId.Value);
+        }
+
+        if (payDateStart.HasValue)
+        {
+            depositQuery = depositQuery.Where(deposit => deposit.DepositDate >= payDateStart.Value.Date);
+        }
+
+        if (payDateEnd.HasValue)
+        {
+            depositQuery = depositQuery.Where(deposit => deposit.DepositDate <= payDateEnd.Value.Date);
+        }
+
+        report.DepositRecords = await depositQuery
+            .OrderByDescending(deposit => deposit.DepositDate)
+            .ThenBy(deposit => deposit.TaxType)
+            .Select(deposit => new TaxDepositReportRecord
+            {
+                TaxDepositRecordId = deposit.TaxDepositRecordId,
+                CompanyName = deposit.Company == null ? string.Empty : deposit.Company.LegalName,
+                DepositDate = deposit.DepositDate,
+                TaxPeriodStart = deposit.TaxPeriodStart,
+                TaxPeriodEnd = deposit.TaxPeriodEnd,
+                TaxType = deposit.TaxType,
+                Agency = deposit.Agency,
+                Amount = deposit.Amount,
+                ConfirmationNumber = deposit.ConfirmationNumber,
+                PaymentMethod = deposit.PaymentMethod,
+                Notes = deposit.Notes,
+                RecordSource = deposit.RecordSource
+            })
+            .ToListAsync();
+
         foreach (var run in report.Runs)
         {
             run.TotalEmployeeWithholding = run.EmployeeWithholdingGroups.Sum(g => g.Amount);
@@ -118,6 +158,7 @@ public class TaxLiabilityReportService
         report.TotalEmployeeWithholding = report.Runs.Sum(r => r.TotalEmployeeWithholding);
         report.TotalEmployerTaxes = report.Runs.Sum(r => r.TotalEmployerTaxes);
         report.TotalTaxLiability = report.Runs.Sum(r => r.TotalTaxLiability);
+        report.TotalUserEnteredDeposits = report.DepositRecords.Sum(record => record.Amount);
         report.GeneratedAt = DateTime.UtcNow;
 
         return report;
@@ -180,6 +221,26 @@ public class TaxLiabilityReportService
         }
 
         csv.AppendLine();
+        csv.AppendLine("User-entered deposit records");
+        csv.AppendLine("Company,Deposit Date,Tax Period Start,Tax Period End,Tax Type,Agency,Amount,Confirmation Number,Payment Method,Record Source,Notes");
+        foreach (var deposit in report.DepositRecords)
+        {
+            csv.AppendLine(string.Join(",",
+                EscapeCsvValue(deposit.CompanyName),
+                EscapeCsvValue(deposit.DepositDate.ToString("yyyy-MM-dd")),
+                EscapeCsvValue(deposit.TaxPeriodStart.ToString("yyyy-MM-dd")),
+                EscapeCsvValue(deposit.TaxPeriodEnd.ToString("yyyy-MM-dd")),
+                EscapeCsvValue(deposit.TaxType),
+                EscapeCsvValue(deposit.Agency),
+                deposit.Amount.ToString("F2"),
+                EscapeCsvValue(deposit.ConfirmationNumber ?? string.Empty),
+                EscapeCsvValue(deposit.PaymentMethod),
+                EscapeCsvValue(deposit.RecordSource),
+                EscapeCsvValue(deposit.Notes ?? string.Empty)
+            ));
+        }
+
+        csv.AppendLine();
         csv.AppendLine(string.Join(",",
             "Totals",
             string.Empty,
@@ -190,6 +251,7 @@ public class TaxLiabilityReportService
             string.Empty,
             report.TotalTaxLiability.ToString("F2")
         ));
+        csv.AppendLine($"User-entered deposits total,,,,,,,{report.TotalUserEnteredDeposits:F2}");
 
         return csv.ToString();
     }
@@ -219,9 +281,11 @@ public class TaxLiabilityReportModel
     public DateTime? PayDateEnd { get; set; }
     public DateTime GeneratedAt { get; set; }
     public List<TaxLiabilityRun> Runs { get; set; } = new();
+    public List<TaxDepositReportRecord> DepositRecords { get; set; } = new();
     public decimal TotalEmployeeWithholding { get; set; }
     public decimal TotalEmployerTaxes { get; set; }
     public decimal TotalTaxLiability { get; set; }
+    public decimal TotalUserEnteredDeposits { get; set; }
 }
 
 /// <summary>
@@ -251,4 +315,20 @@ public class TaxLiabilityGroup
 {
     public string TaxType { get; set; } = string.Empty;
     public decimal Amount { get; set; }
+}
+
+public class TaxDepositReportRecord
+{
+    public int TaxDepositRecordId { get; set; }
+    public string CompanyName { get; set; } = string.Empty;
+    public DateTime DepositDate { get; set; }
+    public DateTime TaxPeriodStart { get; set; }
+    public DateTime TaxPeriodEnd { get; set; }
+    public string TaxType { get; set; } = string.Empty;
+    public string Agency { get; set; } = string.Empty;
+    public decimal Amount { get; set; }
+    public string? ConfirmationNumber { get; set; }
+    public string PaymentMethod { get; set; } = string.Empty;
+    public string? Notes { get; set; }
+    public string RecordSource { get; set; } = "User-entered deposit record";
 }

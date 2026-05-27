@@ -21,6 +21,46 @@ public class DirectDepositSubmissionService
         _payrollService = payrollService;
     }
 
+    public async Task<DirectDepositBatch?> GetLatestBatchForPayrollRunAsync(int payrollRunId)
+    {
+        return await _context.DirectDepositBatches
+            .Include(b => b.Items)
+            .Where(b => b.PayrollRunId == payrollRunId)
+            .OrderByDescending(b => b.CreatedAt)
+            .FirstOrDefaultAsync();
+    }
+
+    public async Task<DirectDepositBatch> SubmitFakePayrollRunDirectDepositAsync(int payrollRunId, string performedByUserId)
+    {
+        if (_achService is not FakeAchPaymentService)
+        {
+            throw new InvalidOperationException("Fake direct deposit submission requires FakeAchPaymentService. Production ACH submission is not allowed from this workflow.");
+        }
+
+        var payrollRun = await _context.PayrollRuns.FirstOrDefaultAsync(p => p.PayrollRunId == payrollRunId);
+        if (payrollRun == null)
+        {
+            throw new InvalidOperationException($"Payroll run {payrollRunId} not found.");
+        }
+
+        var fundingAccount = await _context.CompanyFundingAccounts
+            .Where(f => f.CompanyId == payrollRun.CompanyId && f.IsActive)
+            .OrderByDescending(f => f.IsPrimary)
+            .ThenBy(f => f.CompanyFundingAccountId)
+            .FirstOrDefaultAsync();
+
+        if (fundingAccount == null)
+        {
+            throw new InvalidOperationException("No active company funding account was found for fake direct deposit.");
+        }
+
+        return await SubmitPayrollRunDirectDepositAsync(
+            payrollRunId,
+            fundingAccount.CompanyFundingAccountId,
+            performedByUserId,
+            sandboxMode: true);
+    }
+
     /// <summary>
     /// Submits direct deposit batch for an approved payroll run.
     /// </summary>

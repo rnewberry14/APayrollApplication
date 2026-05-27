@@ -6,12 +6,15 @@
 <PageTitle>Tax Liability Report</PageTitle>
 
 <div class="container-fluid py-4">
+    <NoAdviceDisclaimer />
+
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h1>Tax Liability Report</h1>
             <p class="text-muted">Review payroll run tax liabilities by tax type, including employee withholding and employer tax totals.</p>
         </div>
         <div>
+            <a class="btn btn-outline-primary me-2" href="/help?article=tax-liability-report">Help</a>
             <a class="btn btn-outline-secondary me-2" href="/">Back to home</a>
             @if (string.IsNullOrEmpty(csvDownloadUri))
             {
@@ -64,7 +67,7 @@
     {
         <div class="alert alert-info">No payroll runs found for the selected filters.</div>
     }
-    else
+    else if (report != null)
     {
         <div class="mb-3">
             <strong>Company:</strong> @report.CompanyName<br />
@@ -146,6 +149,57 @@
             </table>
         </div>
     }
+
+    @if (report != null && report.DepositRecords.Any())
+    {
+        <div class="card mt-4">
+            <div class="card-header bg-light">User-entered deposit records</div>
+            <div class="card-body">
+                <div class="alert alert-warning" role="alert">
+                    User-entered deposit record entries are shown for review and reporting only. ClearPath Payroll does not claim these deposits are verified and does not submit payments.
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Company</th>
+                                <th>Deposit Date</th>
+                                <th>Tax Period</th>
+                                <th>Tax Type</th>
+                                <th>Agency</th>
+                                <th>Payment Method</th>
+                                <th>Confirmation</th>
+                                <th>Record Source</th>
+                                <th class="text-end">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var deposit in report.DepositRecords)
+                            {
+                                <tr>
+                                    <td>@deposit.CompanyName</td>
+                                    <td>@deposit.DepositDate.ToString("MM/dd/yyyy")</td>
+                                    <td>@deposit.TaxPeriodStart.ToString("MM/dd/yyyy") - @deposit.TaxPeriodEnd.ToString("MM/dd/yyyy")</td>
+                                    <td>@deposit.TaxType</td>
+                                    <td>@deposit.Agency</td>
+                                    <td>@deposit.PaymentMethod</td>
+                                    <td>@(deposit.ConfirmationNumber ?? "Not entered")</td>
+                                    <td>@deposit.RecordSource</td>
+                                    <td class="text-end">@deposit.Amount.ToString("C")</td>
+                                </tr>
+                            }
+                        </tbody>
+                        <tfoot class="table-secondary">
+                            <tr>
+                                <th colspan="8">User-entered deposits total</th>
+                                <th class="text-end">@report.TotalUserEnteredDeposits.ToString("C")</th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
 </div>
 
 @code {
@@ -173,7 +227,7 @@
 
     private string BuildCsvUri(TaxLiabilityReportModel reportModel)
     {
-        if (reportModel == null || reportModel.Runs == null || !reportModel.Runs.Any())
+        if (reportModel == null || ((reportModel.Runs == null || !reportModel.Runs.Any()) && !reportModel.DepositRecords.Any()))
         {
             return string.Empty;
         }

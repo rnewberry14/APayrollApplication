@@ -1,0 +1,317 @@
+@page "/import/checks"
+@page "/import/employees-and-checks"
+@using ClearPathPayroll.Services
+@inject ChecksImportService CheckImportService
+@inject NavigationManager NavigationManager
+
+<PageTitle>@PageTitleText - ClearPath Payroll</PageTitle>
+
+<div class="container-fluid mt-4">
+    <NoAdviceDisclaimer />
+
+    <div class="alert alert-success" role="status">
+        <strong>Local import:</strong> Imported check data is parsed locally and saved only after review. This workflow does not submit ACH, file taxes, approve payroll, or call production APIs.
+    </div>
+
+    <div class="alert alert-warning" role="alert">
+        Imported data is user-provided and requires review before saving. Do not include full SSNs, full bank account numbers, or routing numbers.
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header bg-light">Required Check Columns</div>
+        <div class="card-body">
+            <p class="mb-2">
+                CompanyIdentifier, EmployeeIdentifier, PayDate, PayPeriodStart, PayPeriodEnd, GrossPay, RegularHours,
+                OvertimeHours, EmployeeFederalTax, EmployeeStateTax, EmployeeLocalTax, SocialSecurityTax, MedicareTax,
+                Deductions, NetPay, PaymentMethod.
+            </p>
+            <p class="mb-0"><strong>Optional:</strong> CheckNumber, DirectDepositLast4.</p>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-lg-8">
+            <h2>@PageTitleText</h2>
+            <p class="text-muted">@PageDescription</p>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(statusMessage))
+    {
+        <div class="alert @statusClass" role="status">@statusMessage</div>
+    }
+
+    <div class="card mb-4">
+        <div class="card-header bg-light">1. Select Local File</div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-7">
+                    <label class="form-label" for="checkFile">Import file</label>
+                    <InputFile id="checkFile" class="form-control" OnChange="OnFileSelected" />
+                    <div class="form-text">Accepted formats: .csv, .txt, .tsv, .tab, and first worksheet of .xlsx.</div>
+                </div>
+                <div class="col-md-5">
+                    <label class="form-check mt-4">
+                        <input class="form-check-input" type="checkbox" @bind="reviewAcknowledged" />
+                        Review warning acknowledged
+                    </label>
+                </div>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(selectedFileName))
+            {
+                <div class="small text-muted mt-3">Selected file: @selectedFileName</div>
+            }
+        </div>
+    </div>
+
+    @if (parseResult != null)
+    {
+        <div class="card mb-4">
+            <div class="card-header bg-light">2. Map Columns</div>
+            <div class="card-body">
+                @foreach (var warning in parseResult.Warnings)
+                {
+                    <div class="alert alert-warning">@warning</div>
+                }
+
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th>Source column</th>
+                                <th>Check field</th>
+                                <th>Required by mapping</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var mapping in mappingInputs)
+                            {
+                                <tr>
+                                    <td>@mapping.SourceColumn</td>
+                                    <td>
+                                        <select class="form-select form-select-sm" @bind="mapping.TargetField">
+                                            <option value="">Do not import</option>
+                                            @foreach (var field in ChecksImportService.AllTargetFields)
+                                            {
+                                                <option value="@field">@field</option>
+                                            }
+                                        </select>
+                                    </td>
+                                    <td><input class="form-check-input" type="checkbox" @bind="mapping.IsRequired" /></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <button class="btn btn-primary" @onclick="ValidateChecks" disabled="@isWorking">Validate Checks</button>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header bg-light">3. Preview Before Saving</div>
+            <div class="table-responsive">
+                <table class="table table-striped table-sm mb-0">
+                    <thead>
+                        <tr>
+                            @foreach (var column in parseResult.Columns)
+                            {
+                                <th>@column</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in parseResult.Rows.Take(15))
+                        {
+                            <tr>
+                                @foreach (var column in parseResult.Columns)
+                                {
+                                    <td>@GetCell(row, column)</td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="card-footer small text-muted">Preview shows up to 15 rows. Payroll runs remain Draft after import.</div>
+        </div>
+    }
+
+    @if (validationResult != null)
+    {
+        <div class="card mb-4">
+            <div class="card-header bg-light">4. Validation Results</div>
+            <div class="card-body">
+                <dl class="row">
+                    <dt class="col-sm-3">Batch</dt>
+                    <dd class="col-sm-9">#@validationResult.Batch.ImportBatchId</dd>
+                    <dt class="col-sm-3">Rows</dt>
+                    <dd class="col-sm-9">@validationResult.Batch.RowCount total, @validationResult.Batch.ValidRowCount valid, @validationResult.Batch.ErrorCount errors</dd>
+                    <dt class="col-sm-3">Status</dt>
+                    <dd class="col-sm-9">@validationResult.Batch.Status</dd>
+                </dl>
+
+                @if (validationResult.Batch.Errors.Any())
+                {
+                    <div class="alert alert-danger">Validation errors require review before saving imported checks.</div>
+                    <ul>
+                        @foreach (var error in validationResult.Batch.Errors.OrderBy(error => error.RowNumber).ThenBy(error => error.ErrorCode).Take(50))
+                        {
+                            <li>Row @(error.RowNumber?.ToString() ?? "batch"): @error.Message</li>
+                        }
+                    </ul>
+                }
+                else
+                {
+                    <div class="alert alert-success">Validation completed. Imported checks are ready to save as Draft after-the-fact payroll.</div>
+                    <button class="btn btn-success" @onclick="ConfirmChecks" disabled="@isWorking">Save Draft Payroll Runs</button>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private ImportFileParseResult? parseResult;
+    private ChecksImportValidationResult? validationResult;
+    private List<ImportMappingInput> mappingInputs = new();
+    private string selectedFileName = string.Empty;
+    private string statusMessage = string.Empty;
+    private string statusClass = "alert-info";
+    private bool reviewAcknowledged;
+    private bool isWorking;
+
+    private ChecksImportMode Mode => NavigationManager.Uri.Contains("/import/employees-and-checks", StringComparison.OrdinalIgnoreCase)
+        ? ChecksImportMode.EmployeesAndChecks
+        : ChecksImportMode.ChecksOnly;
+
+    private string PageTitleText => Mode == ChecksImportMode.EmployeesAndChecks
+        ? "Employees And Checks Import"
+        : "Checks Only Import";
+
+    private string PageDescription => Mode == ChecksImportMode.EmployeesAndChecks
+        ? "Import after-the-fact check rows and create local employee placeholders when identifiers are not already found."
+        : "Import after-the-fact check rows for employees that already exist locally.";
+
+    private async Task OnFileSelected(InputFileChangeEventArgs args)
+    {
+        ResetStatus();
+        validationResult = null;
+        selectedFileName = args.File.Name;
+
+        try
+        {
+            isWorking = true;
+            await using var stream = args.File.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+            parseResult = await CheckImportService.ParseFileAsync(stream, args.File.Name);
+            mappingInputs = parseResult.Columns.Select(column =>
+            {
+                var target = GuessCheckField(column);
+                return new ImportMappingInput
+                {
+                    SourceColumn = column,
+                    TargetField = target,
+                    IsRequired = ChecksImportService.RequiredTargetFields.Contains(target, StringComparer.OrdinalIgnoreCase)
+                };
+            }).ToList();
+            statusClass = "alert-success";
+            statusMessage = "File parsed locally. Review mappings and preview before validation.";
+        }
+        catch (Exception ex)
+        {
+            parseResult = null;
+            mappingInputs.Clear();
+            statusClass = "alert-danger";
+            statusMessage = $"Unable to parse check file: {ex.Message}";
+        }
+        finally
+        {
+            isWorking = false;
+        }
+    }
+
+    private async Task ValidateChecks()
+    {
+        if (parseResult == null)
+        {
+            return;
+        }
+
+        ResetStatus();
+
+        try
+        {
+            isWorking = true;
+            validationResult = await CheckImportService.ValidateAsync(
+                Mode,
+                selectedFileName,
+                parseResult,
+                mappingInputs,
+                reviewAcknowledged);
+            statusClass = validationResult.CanImport ? "alert-success" : "alert-warning";
+            statusMessage = validationResult.CanImport
+                ? "Checks validated locally. Save draft payroll runs after review."
+                : "Check validation found blocking errors.";
+        }
+        catch (Exception ex)
+        {
+            statusClass = "alert-danger";
+            statusMessage = $"Unable to validate checks: {ex.Message}";
+        }
+        finally
+        {
+            isWorking = false;
+        }
+    }
+
+    private async Task ConfirmChecks()
+    {
+        if (validationResult == null)
+        {
+            return;
+        }
+
+        ResetStatus();
+
+        try
+        {
+            isWorking = true;
+            var result = await CheckImportService.ConfirmAsync(Mode, validationResult.Batch.ImportBatchId);
+            validationResult = new ChecksImportValidationResult { Batch = result.Batch };
+            statusClass = "alert-success";
+            statusMessage = $"{result.CheckCount} checks saved into {result.PayrollRunCount} Draft after-the-fact payroll run(s).";
+        }
+        catch (Exception ex)
+        {
+            statusClass = "alert-danger";
+            statusMessage = $"Unable to save imported checks: {ex.Message}";
+        }
+        finally
+        {
+            isWorking = false;
+        }
+    }
+
+    private static string GetCell(Dictionary<string, string> row, string column)
+    {
+        return row.TryGetValue(column, out var value) ? value : string.Empty;
+    }
+
+    private static string GuessCheckField(string column)
+    {
+        var normalized = column.Replace(" ", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace("_", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace("-", string.Empty, StringComparison.OrdinalIgnoreCase);
+
+        return ChecksImportService.AllTargetFields.FirstOrDefault(field =>
+            string.Equals(field, normalized, StringComparison.OrdinalIgnoreCase))
+            ?? string.Empty;
+    }
+
+    private void ResetStatus()
+    {
+        statusMessage = string.Empty;
+        statusClass = "alert-info";
+    }
+}

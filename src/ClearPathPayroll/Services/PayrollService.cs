@@ -16,6 +16,16 @@ public class PayrollService
         _context = context;
     }
 
+    public sealed class PayrollRunEmployeeSetupInput
+    {
+        public int EmployeeId { get; set; }
+        public decimal RegularHours { get; set; }
+        public decimal OvertimeHours { get; set; }
+        public decimal ManualGrossPayAdjustment { get; set; }
+        public string Notes { get; set; } = string.Empty;
+        public string PayrollMode { get; set; } = string.Empty;
+    }
+
     /// <summary>
     /// Gets all payroll runs for a company.
     /// </summary>
@@ -56,6 +66,117 @@ public class PayrollService
         payrollRun.Status = PayrollStatus.Draft;
         payrollRun.CreatedAt = DateTime.UtcNow;
         _context.PayrollRuns.Add(payrollRun);
+        await _context.SaveChangesAsync();
+        return payrollRun;
+    }
+
+    public async Task<PayrollRun> CreateDraftPayrollRunAsync(
+        int companyId,
+        int payScheduleId,
+        IEnumerable<PayrollRunEmployeeSetupInput> employeeInputs,
+        string? userId = null)
+    {
+        var paySchedule = await _context.PaySchedules
+            .FirstOrDefaultAsync(p => p.PayScheduleId == payScheduleId && p.CompanyId == companyId);
+
+        if (paySchedule == null)
+        {
+            throw new InvalidOperationException("Selected pay schedule was not found for the selected company.");
+        }
+
+        var inputs = employeeInputs.ToList();
+        if (!inputs.Any())
+        {
+            throw new InvalidOperationException("Select at least one employee.");
+        }
+
+        var employeeIds = inputs.Select(input => input.EmployeeId).Distinct().ToList();
+        var employees = await _context.Employees
+            .Where(e => e.CompanyId == companyId && employeeIds.Contains(e.EmployeeId))
+            .ToListAsync();
+
+        if (employees.Count != employeeIds.Count)
+        {
+            throw new InvalidOperationException("One or more selected employees were not found for the selected company.");
+        }
+
+        var payrollRun = new PayrollRun
+        {
+            CompanyId = companyId,
+            PayScheduleId = payScheduleId,
+            PayPeriodStart = paySchedule.NextPeriodStartDate,
+            PayPeriodEnd = paySchedule.NextPeriodEndDate,
+            PayDate = paySchedule.NextPayDate,
+            Status = PayrollStatus.Draft,
+            CreatedAt = DateTime.UtcNow,
+            CreatedByUserId = userId
+        };
+
+        _context.PayrollRuns.Add(payrollRun);
+        await _context.SaveChangesAsync();
+
+        foreach (var input in inputs)
+        {
+            var payrollEmployee = new PayrollRunEmployee
+            {
+                PayrollRunId = payrollRun.PayrollRunId,
+                EmployeeId = input.EmployeeId,
+                GrossPay = 0m,
+                TotalDeductions = 0m,
+                TotalTaxes = 0m,
+                NetPay = 0m
+            };
+
+            if (input.RegularHours > 0)
+            {
+                payrollEmployee.EarningLines.Add(new EarningLine
+                {
+                    Description = "Regular Hours",
+                    Hours = input.RegularHours,
+                    Amount = 0m
+                });
+            }
+
+            if (input.OvertimeHours > 0)
+            {
+                payrollEmployee.EarningLines.Add(new EarningLine
+                {
+                    Description = "Overtime hours placeholder",
+                    Hours = input.OvertimeHours,
+                    Amount = 0m
+                });
+            }
+
+            if (input.ManualGrossPayAdjustment > 0)
+            {
+                payrollEmployee.EarningLines.Add(new EarningLine
+                {
+                    Description = "Manual gross pay adjustment",
+                    Amount = input.ManualGrossPayAdjustment
+                });
+            }
+
+            if (!string.IsNullOrWhiteSpace(input.Notes))
+            {
+                payrollEmployee.EarningLines.Add(new EarningLine
+                {
+                    Description = $"Notes: {input.Notes}",
+                    Amount = 0m
+                });
+            }
+
+            _context.PayrollRunEmployees.Add(payrollEmployee);
+        }
+
+        _context.AuditLogEntries.Add(new AuditLogEntry
+        {
+            PayrollRunId = payrollRun.PayrollRunId,
+            EventType = "PayrollRunDraftCreated",
+            Description = $"Draft payroll run {payrollRun.PayrollRunId} created for {inputs.Count} employee(s).",
+            CreatedByUserId = userId,
+            CreatedAt = DateTime.UtcNow
+        });
+
         await _context.SaveChangesAsync();
         return payrollRun;
     }

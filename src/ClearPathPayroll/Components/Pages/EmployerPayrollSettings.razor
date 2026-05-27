@@ -1,0 +1,378 @@
+@page "/setup/employer/payroll-settings"
+@using System.ComponentModel.DataAnnotations
+@using ClearPathPayroll.Domain
+@using ClearPathPayroll.Services
+@inject CompanyService CompanyService
+@inject PayrollItemService PayrollItemService
+
+<PageTitle>Employer Payroll Settings - ClearPath Payroll</PageTitle>
+
+<div class="container-fluid mt-4">
+    <NoAdviceDisclaimer />
+
+    <div class="alert alert-success" role="status">
+        <strong>Local Demo Mode:</strong> Payroll settings are stored in the local database. This page does not call tax APIs, submit ACH, or submit tax filings.
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2>Employer Payroll Settings</h2>
+            <p class="text-muted">Maintain user-entered employer tax setup placeholders and payroll items.</p>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(statusMessage))
+    {
+        <div class="alert @statusClass alert-dismissible fade show" role="status">
+            @statusMessage
+            <button type="button" class="btn-close" @onclick="() => statusMessage = string.Empty"></button>
+        </div>
+    }
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <label class="form-label" for="company">Company</label>
+            <select id="company" class="form-select" value="@selectedCompanyId" @onchange="OnCompanyChanged">
+                <option value="0">Select a company</option>
+                @foreach (var company in companies)
+                {
+                    <option value="@company.CompanyId">@company.LegalName</option>
+                }
+            </select>
+        </div>
+    </div>
+
+    @if (selectedCompany == null)
+    {
+        <div class="alert alert-info">Select a company to manage payroll settings.</div>
+    }
+    else
+    {
+        <div class="alert alert-warning" role="alert">
+            <strong>Verify with official agency records.</strong> Rates and account references on this screen are user-entered rate or placeholder values.
+        </div>
+
+        <div class="row">
+            <div class="col-xl-5">
+                <EditForm Model="selectedCompany" OnValidSubmit="SavePayrollSettings">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <div class="card mb-4">
+                        <div class="card-header bg-light">Employer Tax Setup</div>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">FUTA rate placeholder</label>
+                                    <InputNumber class="form-control" @bind-Value="selectedCompany.FutaRatePlaceholder" />
+                                    <div class="form-text">User-entered rate.</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">SUTA state</label>
+                                    <InputText class="form-control" maxlength="2" @bind-Value="selectedCompany.SutaState" />
+                                </div>
+                                <div class="col-md-7">
+                                    <label class="form-label">SUTA employer account number placeholder</label>
+                                    <InputText class="form-control" @bind-Value="selectedCompany.SutaEmployerAccountNumberPlaceholder" />
+                                    <div class="form-text">Displayed as @CompanyService.MaskAccountPlaceholder(selectedCompany.SutaEmployerAccountNumberPlaceholder).</div>
+                                    <ValidationMessage For="() => selectedCompany.SutaEmployerAccountNumberPlaceholder" />
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label">SUTA rate</label>
+                                    <InputNumber class="form-control" @bind-Value="selectedCompany.SutaRate" />
+                                    <div class="form-text">User-entered rate.</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">State withholding account number placeholder</label>
+                                    <InputText class="form-control" @bind-Value="selectedCompany.StateWithholdingAccountNumberPlaceholder" />
+                                    <div class="form-text">Displayed as @CompanyService.MaskAccountPlaceholder(selectedCompany.StateWithholdingAccountNumberPlaceholder).</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Local tax account number placeholder</label>
+                                    <InputText class="form-control" @bind-Value="selectedCompany.LocalTaxAccountNumberPlaceholder" />
+                                    <div class="form-text">Displayed as @CompanyService.MaskAccountPlaceholder(selectedCompany.LocalTaxAccountNumberPlaceholder).</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Deposit schedule placeholder</label>
+                                    <InputText class="form-control" @bind-Value="selectedCompany.DepositSchedulePlaceholder" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Filing frequency placeholder</label>
+                                    <InputText class="form-control" @bind-Value="selectedCompany.FilingFrequencyPlaceholder" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Effective date</label>
+                                    <InputDate class="form-control" @bind-Value="selectedCompany.EmployerTaxEffectiveDate" />
+                                </div>
+                                <div class="col-md-12">
+                                    <label class="form-label">Notes</label>
+                                    <InputTextArea class="form-control" rows="4" @bind-Value="selectedCompany.EmployerTaxNotes" />
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <button type="submit" class="btn btn-primary" disabled="@isSavingSettings">Save Payroll Settings</button>
+                        </div>
+                    </div>
+                </EditForm>
+            </div>
+
+            <div class="col-xl-7">
+                <div class="card mb-4">
+                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                        <span>Payroll Items</span>
+                        <button type="button" class="btn btn-sm btn-primary" @onclick="StartNewPayrollItem">Add New Payroll Item</button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-striped mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Code</th>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th>Calculation</th>
+                                    <th>Status</th>
+                                    <th class="text-end">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (payrollItems.Count == 0)
+                                {
+                                    <tr><td colspan="6" class="text-center text-muted">No payroll items found.</td></tr>
+                                }
+                                else
+                                {
+                                    @foreach (var item in payrollItems)
+                                    {
+                                        <tr>
+                                            <td><code>@item.ItemCode</code></td>
+                                            <td>@item.ItemName</td>
+                                            <td>@item.ItemType</td>
+                                            <td>@item.CalculationType</td>
+                                            <td>@(item.IsActive ? "Active" : "Inactive")</td>
+                                            <td class="text-end">
+                                                <button type="button" class="btn btn-sm btn-outline-primary" @onclick="() => EditPayrollItem(item.PayrollItemId)">Edit</button>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                @if (editingPayrollItem != null)
+                {
+                    <EditForm Model="editingPayrollItem" OnValidSubmit="SavePayrollItem">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+                        <div class="card mb-4">
+                            <div class="card-header bg-light">Payroll Item Detail</div>
+                            <div class="card-body">
+                                <div class="row g-3">
+                                    <div class="col-md-3">
+                                        <label class="form-label">Item code</label>
+                                        <InputText class="form-control" @bind-Value="editingPayrollItem.ItemCode" />
+                                    </div>
+                                    <div class="col-md-5">
+                                        <label class="form-label">Item name</label>
+                                        <InputText class="form-control" @bind-Value="editingPayrollItem.ItemName" />
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Item type</label>
+                                        <InputSelect class="form-select" @bind-Value="editingPayrollItem.ItemType">
+                                            @foreach (var value in Enum.GetValues<PayrollItemType>())
+                                            {
+                                                <option value="@value">@value</option>
+                                            }
+                                        </InputSelect>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Calculation type</label>
+                                        <InputSelect class="form-select" @bind-Value="editingPayrollItem.CalculationType">
+                                            @foreach (var value in Enum.GetValues<PayrollItemCalculationType>())
+                                            {
+                                                <option value="@value">@value</option>
+                                            }
+                                        </InputSelect>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Default amount</label>
+                                        <InputNumber class="form-control" @bind-Value="editingPayrollItem.DefaultAmount" />
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Default rate</label>
+                                        <InputNumber class="form-control" @bind-Value="editingPayrollItem.DefaultRate" />
+                                        <div class="form-text">User-entered rate.</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Effective date</label>
+                                        <InputDate class="form-control" @bind-Value="editingPayrollItem.EffectiveDate" />
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">End date</label>
+                                        <InputDate class="form-control" @bind-Value="editingPayrollItem.EndDate" />
+                                    </div>
+                                    <div class="col-md-12 d-flex flex-wrap gap-4">
+                                        <label class="form-check"><InputCheckbox class="form-check-input" @bind-Value="editingPayrollItem.IsTaxableFederal" /> Federal taxable</label>
+                                        <label class="form-check"><InputCheckbox class="form-check-input" @bind-Value="editingPayrollItem.IsTaxableState" /> State taxable</label>
+                                        <label class="form-check"><InputCheckbox class="form-check-input" @bind-Value="editingPayrollItem.IsTaxableLocal" /> Local taxable</label>
+                                        <label class="form-check"><InputCheckbox class="form-check-input" @bind-Value="editingPayrollItem.IsSubjectToSocialSecurity" /> Social Security subject</label>
+                                        <label class="form-check"><InputCheckbox class="form-check-input" @bind-Value="editingPayrollItem.IsSubjectToMedicare" /> Medicare subject</label>
+                                        <label class="form-check"><InputCheckbox class="form-check-input" @bind-Value="editingPayrollItem.IsPretaxDeduction" /> Pretax deduction</label>
+                                        <label class="form-check"><InputCheckbox class="form-check-input" @bind-Value="editingPayrollItem.IsPosttaxDeduction" /> Posttax deduction</label>
+                                        <label class="form-check"><InputCheckbox class="form-check-input" @bind-Value="editingPayrollItem.IsActive" /> Active</label>
+                                    </div>
+                                    <div class="col-md-12">
+                                        <label class="form-label">Notes</label>
+                                        <InputTextArea class="form-control" rows="4" @bind-Value="editingPayrollItem.Notes" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-footer d-flex gap-2">
+                                <button type="submit" class="btn btn-primary" disabled="@isSavingItem">Save Item</button>
+                                <button type="button" class="btn btn-outline-secondary" @onclick="CancelPayrollItemEdit" disabled="@isSavingItem">Cancel</button>
+                            </div>
+                        </div>
+                    </EditForm>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<Company> companies = new();
+    private Company? selectedCompany;
+    private int selectedCompanyId;
+    private List<PayrollItem> payrollItems = new();
+    private PayrollItem? editingPayrollItem;
+    private bool isSavingSettings;
+    private bool isSavingItem;
+    private string statusMessage = string.Empty;
+    private string statusClass = "alert-info";
+
+    protected override async Task OnInitializedAsync()
+    {
+        companies = await CompanyService.GetAllActiveCompaniesAsync();
+        if (companies.Count == 1)
+        {
+            selectedCompanyId = companies[0].CompanyId;
+            await LoadSelectedCompany();
+        }
+    }
+
+    private async Task OnCompanyChanged(ChangeEventArgs args)
+    {
+        selectedCompanyId = int.TryParse(args.Value?.ToString(), out var value) ? value : 0;
+        editingPayrollItem = null;
+        await LoadSelectedCompany();
+    }
+
+    private async Task LoadSelectedCompany()
+    {
+        selectedCompany = selectedCompanyId == 0
+            ? null
+            : await CompanyService.GetCompanyWithPayrollItemsAsync(selectedCompanyId);
+
+        payrollItems = selectedCompany == null
+            ? new List<PayrollItem>()
+            : await PayrollItemService.GetPayrollItemsByCompanyAsync(selectedCompany.CompanyId);
+    }
+
+    private async Task SavePayrollSettings()
+    {
+        if (selectedCompany == null)
+        {
+            return;
+        }
+
+        isSavingSettings = true;
+        statusMessage = string.Empty;
+
+        try
+        {
+            await CompanyService.SaveEmployerSetupAsync(selectedCompany);
+            statusClass = "alert-success";
+            statusMessage = "Payroll settings saved locally. Verify with official agency records.";
+            await LoadSelectedCompany();
+        }
+        catch (ValidationException ex)
+        {
+            statusClass = "alert-danger";
+            statusMessage = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            statusClass = "alert-danger";
+            statusMessage = $"Unable to save payroll settings: {ex.Message}";
+        }
+        finally
+        {
+            isSavingSettings = false;
+        }
+    }
+
+    private void StartNewPayrollItem()
+    {
+        if (selectedCompany == null)
+        {
+            return;
+        }
+
+        editingPayrollItem = new PayrollItem
+        {
+            CompanyId = selectedCompany.CompanyId,
+            ItemType = PayrollItemType.Earnings,
+            CalculationType = PayrollItemCalculationType.ManualEntry,
+            IsActive = true,
+            EffectiveDate = DateTime.Today
+        };
+    }
+
+    private async Task EditPayrollItem(int payrollItemId)
+    {
+        editingPayrollItem = await PayrollItemService.GetPayrollItemByIdAsync(payrollItemId);
+    }
+
+    private async Task SavePayrollItem()
+    {
+        if (editingPayrollItem == null)
+        {
+            return;
+        }
+
+        isSavingItem = true;
+        statusMessage = string.Empty;
+
+        try
+        {
+            await PayrollItemService.SavePayrollItemAsync(editingPayrollItem);
+            editingPayrollItem = null;
+            statusClass = "alert-success";
+            statusMessage = "Payroll item saved locally.";
+            await LoadSelectedCompany();
+        }
+        catch (ValidationException ex)
+        {
+            statusClass = "alert-danger";
+            statusMessage = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            statusClass = "alert-danger";
+            statusMessage = $"Unable to save payroll item: {ex.Message}";
+        }
+        finally
+        {
+            isSavingItem = false;
+        }
+    }
+
+    private void CancelPayrollItemEdit()
+    {
+        editingPayrollItem = null;
+        statusMessage = string.Empty;
+    }
+}

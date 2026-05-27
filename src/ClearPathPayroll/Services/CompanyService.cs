@@ -1,6 +1,7 @@
 using ClearPathPayroll.Data;
 using ClearPathPayroll.Domain;
 using Microsoft.EntityFrameworkCore;
+using System.ComponentModel.DataAnnotations;
 
 namespace ClearPathPayroll.Services;
 
@@ -23,6 +24,14 @@ public class CompanyService
     {
         return await _context.Companies
             .Where(c => c.IsActive)
+            .OrderBy(c => c.LegalName)
+            .ToListAsync();
+    }
+
+    public async Task<List<Company>> GetAllCompaniesAsync()
+    {
+        return await _context.Companies
+            .OrderBy(c => c.LegalName)
             .ToListAsync();
     }
 
@@ -34,11 +43,19 @@ public class CompanyService
         return await _context.Companies.FindAsync(id);
     }
 
+    public async Task<Company?> GetCompanyWithPayrollItemsAsync(int id)
+    {
+        return await _context.Companies
+            .Include(c => c.PayrollItems.OrderBy(item => item.ItemCode))
+            .FirstOrDefaultAsync(c => c.CompanyId == id);
+    }
+
     /// <summary>
     /// Creates a new company.
     /// </summary>
     public async Task<Company> CreateCompanyAsync(Company company)
     {
+        ValidateCompany(company);
         company.CreatedAt = DateTime.UtcNow;
         _context.Companies.Add(company);
         await _context.SaveChangesAsync();
@@ -50,9 +67,29 @@ public class CompanyService
     /// </summary>
     public async Task<bool> UpdateCompanyAsync(Company company)
     {
+        ValidateCompany(company);
         company.UpdatedAt = DateTime.UtcNow;
         _context.Companies.Update(company);
         return await _context.SaveChangesAsync() > 0;
+    }
+
+    public async Task<Company> SaveEmployerSetupAsync(Company company)
+    {
+        ValidateCompany(company);
+
+        if (company.CompanyId == 0)
+        {
+            company.CreatedAt = DateTime.UtcNow;
+            _context.Companies.Add(company);
+        }
+        else
+        {
+            company.UpdatedAt = DateTime.UtcNow;
+            _context.Companies.Update(company);
+        }
+
+        await _context.SaveChangesAsync();
+        return company;
     }
 
     /// <summary>
@@ -88,5 +125,31 @@ public class CompanyService
 
         // Show first 2 digits, next 2 digits, mask the rest
         return $"{digits.Substring(0, 2)}-{digits.Substring(2, 2)}-****";
+    }
+
+    public static string MaskAccountPlaceholder(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "Not set";
+        }
+
+        var trimmed = value.Trim();
+        if (trimmed.Length <= 4)
+        {
+            return "****";
+        }
+
+        return $"****{trimmed[^4..]}";
+    }
+
+    private static void ValidateCompany(Company company)
+    {
+        var context = new ValidationContext(company);
+        var results = new List<ValidationResult>();
+        if (!Validator.TryValidateObject(company, context, results, true))
+        {
+            throw new ValidationException(results[0].ErrorMessage);
+        }
     }
 }

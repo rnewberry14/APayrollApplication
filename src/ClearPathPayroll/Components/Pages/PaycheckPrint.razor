@@ -1,0 +1,220 @@
+@page "/payroll/paycheck/{PayrollRunEmployeeId:int}"
+@using ClearPathPayroll.Configuration
+@using ClearPathPayroll.Services
+@using Microsoft.Extensions.Options
+@inject PaycheckPrintService PaycheckPrintService
+@inject IOptions<PrototypeModeOptions> PrototypeOptions
+@inject IHostEnvironment HostEnvironment
+@inject IJSRuntime JSRuntime
+@inject NavigationManager NavigationManager
+
+<PageTitle>Printable Paycheck - ClearPath Payroll</PageTitle>
+
+<div class="container-fluid mt-4 paycheck-page">
+    @if (isLoading)
+    {
+        <div class="alert alert-info no-print">Loading paycheck...</div>
+    }
+    else if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger no-print">@errorMessage</div>
+    }
+    else if (paycheck == null)
+    {
+        <div class="alert alert-warning no-print">Printable paycheck is not available.</div>
+    }
+    else
+    {
+        <div class="no-print mb-3">
+            <NoAdviceDisclaimer />
+            <div class="alert alert-info" role="note">
+                Printed checks are user-controlled documents. ClearPath Payroll does not create bank-positive-pay files, submit ACH, or imply bank approval.
+            </div>
+            <button class="btn btn-primary me-2" @onclick="PrintPaycheck">Print Paycheck</button>
+            <button class="btn btn-outline-secondary" @onclick="GoBack">Back</button>
+        </div>
+
+        <section class="paycheck-sheet">
+            @if (IsLocalDemoMode)
+            {
+                <div class="demo-watermark">NON-NEGOTIABLE / DEMO</div>
+            }
+
+            <div class="d-flex justify-content-between align-items-start mb-4">
+                <div>
+                    <h2>@paycheck.CompanyName</h2>
+                    <pre class="address-block">@paycheck.CompanyAddress</pre>
+                </div>
+                <div class="text-end">
+                    <label class="form-label">Check number</label>
+                    <input class="form-control check-number" @bind="checkNumber" />
+                    <div class="small text-muted">Tracking placeholder</div>
+                </div>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col-7">
+                    <div class="small text-muted">Pay to the order of</div>
+                    <h3>@paycheck.EmployeeName</h3>
+                    <pre class="address-block">@paycheck.EmployeeAddress</pre>
+                </div>
+                <div class="col-5 text-end">
+                    <div class="small text-muted">Pay date</div>
+                    <div class="fs-4">@paycheck.PayDate.ToString("MM/dd/yyyy")</div>
+                    <div class="small text-muted mt-3">Net pay amount</div>
+                    <div class="fs-3">@paycheck.NetPayAmount.ToString("C")</div>
+                </div>
+            </div>
+
+            <div class="amount-words mb-4">
+                <span>@paycheck.NetPayInWords</span>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="small text-muted">Memo line</div>
+                    <div class="memo-line">@paycheck.MemoLine</div>
+                </div>
+                <div class="col-md-6">
+                    <div class="small text-muted">Pay period</div>
+                    <div>@paycheck.PayPeriodStart.ToString("MM/dd/yyyy") - @paycheck.PayPeriodEnd.ToString("MM/dd/yyyy")</div>
+                </div>
+            </div>
+
+            <div class="signature-line text-end">
+                <span>Authorized signature</span>
+            </div>
+
+            <div class="small text-muted mt-4">
+                Printed checks are user-controlled documents. No SSN, routing number, or account number prints on this page.
+            </div>
+        </section>
+    }
+</div>
+
+<style>
+    .paycheck-sheet {
+        position: relative;
+        max-width: 920px;
+        min-height: 420px;
+        margin: 0 auto 2rem auto;
+        padding: 2rem;
+        border: 1px solid #555;
+        background: #fff;
+        color: #111;
+    }
+
+    .address-block {
+        margin: 0;
+        font-family: inherit;
+        white-space: pre-wrap;
+        background: transparent;
+        border: 0;
+        padding: 0;
+    }
+
+    .check-number {
+        width: 180px;
+        text-align: right;
+    }
+
+    .amount-words {
+        border-bottom: 1px solid #111;
+        padding-bottom: 0.5rem;
+        font-size: 1.2rem;
+    }
+
+    .memo-line {
+        border-bottom: 1px solid #111;
+        min-height: 2rem;
+    }
+
+    .signature-line {
+        margin-top: 4rem;
+    }
+
+    .signature-line span {
+        display: inline-block;
+        min-width: 260px;
+        border-top: 1px solid #111;
+        padding-top: 0.25rem;
+    }
+
+    .demo-watermark {
+        position: absolute;
+        inset: 35% auto auto 14%;
+        transform: rotate(-18deg);
+        font-size: 3rem;
+        font-weight: 700;
+        color: rgba(180, 0, 0, 0.18);
+        pointer-events: none;
+        white-space: nowrap;
+    }
+
+    @@media print {
+        .no-print {
+            display: none !important;
+        }
+
+        body {
+            background: #fff;
+            color: #000;
+        }
+
+        .paycheck-sheet {
+            max-width: none;
+            width: 100%;
+            margin: 0;
+            border: 1px solid #000;
+            box-shadow: none;
+            page-break-inside: avoid;
+        }
+    }
+</style>
+
+@code {
+    [Parameter]
+    public int PayrollRunEmployeeId { get; set; }
+
+    private PrintablePaycheckModel? paycheck;
+    private string checkNumber = string.Empty;
+    private bool isLoading = true;
+    private string errorMessage = string.Empty;
+
+    private bool IsLocalDemoMode => PrototypeModeHelper.ShouldUseLocalPrototypeMode(HostEnvironment, PrototypeOptions.Value);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPaycheck();
+    }
+
+    private async Task LoadPaycheck()
+    {
+        isLoading = true;
+        errorMessage = string.Empty;
+
+        try
+        {
+            paycheck = await PaycheckPrintService.GetPrintablePaycheckAsync(PayrollRunEmployeeId);
+            checkNumber = paycheck.CheckNumberPlaceholder;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task PrintPaycheck()
+    {
+        await JSRuntime.InvokeVoidAsync("window.print");
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo("/");
+    }
+}

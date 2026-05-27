@@ -1,0 +1,416 @@
+@page "/import/w2-pdf"
+@using ClearPathPayroll.Domain
+@using ClearPathPayroll.Services
+@inject W2PdfImportService W2PdfImportService
+
+<PageTitle>W-2 PDF Import</PageTitle>
+
+<h1>W-2 PDF Import</h1>
+
+<NoAdviceDisclaimer />
+
+<div class="alert alert-warning">
+    W-2 PDF import extracts user-provided historical data for review. ClearPath Payroll does not verify, validate, or guarantee the accuracy of imported W-2 data.
+</div>
+
+<div class="alert alert-info">
+    Local PDF text extraction only. Scanned or image-only PDFs may not produce text. Original PDF files are not stored by default, and no data is transmitted externally.
+</div>
+
+<div class="mb-3">
+    <label class="form-label">Local W-2 PDF</label>
+    <InputFile OnChange="OnFileSelected" accept=".pdf" class="form-control" />
+</div>
+
+<div class="d-flex gap-2 mb-4">
+    <button class="btn btn-primary" @onclick="ParsePdfAsync" disabled="@(!CanParse)">Parse PDF</button>
+    <button class="btn btn-success" @onclick="SaveReviewedRecordsAsync" disabled="@(!CanSave)">Save Reviewed Records</button>
+    <button class="btn btn-outline-secondary" @onclick="CancelImport" disabled="@(batch == null)">Cancel Import</button>
+    <button class="btn btn-outline-danger" @onclick="ClearImport" disabled="@(batch == null)">Clear Import</button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(statusMessage))
+{
+    <div class="alert alert-success">@statusMessage</div>
+}
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
+@if (batch != null)
+{
+    <section class="mb-4">
+        <h2>Import Review</h2>
+        <dl class="row">
+            <dt class="col-sm-3">File</dt>
+            <dd class="col-sm-9">@batch.FileName</dd>
+            <dt class="col-sm-3">Status</dt>
+            <dd class="col-sm-9">@batch.ImportStatus</dd>
+            <dt class="col-sm-3">Records</dt>
+            <dd class="col-sm-9">@batch.RecordCount</dd>
+            <dt class="col-sm-3">Warnings or errors</dt>
+            <dd class="col-sm-9">@batch.ErrorCount</dd>
+            <dt class="col-sm-3">Notes</dt>
+            <dd class="col-sm-9">@batch.Notes</dd>
+        </dl>
+    </section>
+
+    @if (batch.Errors.Count > 0)
+    {
+        <section class="mb-4">
+            <h2>Parser Messages</h2>
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Severity</th>
+                        <th>Field</th>
+                        <th>Message</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in batch.Errors)
+                    {
+                        <tr class="@GetMessageRowClass(item.Severity)">
+                            <td>@item.Severity</td>
+                            <td>@item.FieldName</td>
+                            <td>@item.Message</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </section>
+    }
+
+    @foreach (var record in batch.Records)
+    {
+        <section class="border rounded p-3 mb-4">
+            <div class="d-flex justify-content-between align-items-start">
+                <h2>Extracted W-2 Record</h2>
+                <span class="badge @GetConfidenceClass(record.ConfidenceScore)">Confidence @record.ConfidenceScore.ToString("P0")</span>
+            </div>
+
+            @if (record.NeedsManualReview)
+            {
+                <div class="alert alert-warning">This record needs review. Missing or low-confidence fields may need manual correction before saving.</div>
+            }
+
+            <div class="row g-3">
+                <div class="col-md-2">
+                    <label class="form-label">Tax year</label>
+                    <InputNumber class="form-control" @bind-Value="record.TaxYear" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Employer name</label>
+                    <InputText class="form-control" @bind-Value="record.EmployerName" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Employer EIN last 4</label>
+                    <InputText class="form-control" maxlength="4" @bind-Value="record.EmployerEINLast4Only" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Employer address</label>
+                    <InputText class="form-control" @bind-Value="record.EmployerAddress" />
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label">Employee first name</label>
+                    <InputText class="form-control" @bind-Value="record.EmployeeFirstName" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Middle initial</label>
+                    <InputText class="form-control" maxlength="1" @bind-Value="record.EmployeeMiddleInitial" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Employee last name</label>
+                    <InputText class="form-control" @bind-Value="record.EmployeeLastName" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">SSN last 4 only</label>
+                    <InputText class="form-control" maxlength="4" @bind-Value="record.EmployeeSSNLast4Only" />
+                </div>
+                <div class="col-md-12">
+                    <label class="form-label">Employee address</label>
+                    <InputText class="form-control" @bind-Value="record.EmployeeAddress" />
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label">Box 1 wages</label>
+                    <InputNumber class="form-control" @bind-Value="record.Box1WagesTipsOtherCompensation" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Box 2 federal tax withheld</label>
+                    <InputNumber class="form-control" @bind-Value="record.Box2FederalIncomeTaxWithheld" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Box 3 social security wages</label>
+                    <InputNumber class="form-control" @bind-Value="record.Box3SocialSecurityWages" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Box 4 social security tax</label>
+                    <InputNumber class="form-control" @bind-Value="record.Box4SocialSecurityTaxWithheld" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Box 5 Medicare wages and tips</label>
+                    <InputNumber class="form-control" @bind-Value="record.Box5MedicareWagesAndTips" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Box 6 Medicare tax</label>
+                    <InputNumber class="form-control" @bind-Value="record.Box6MedicareTaxWithheld" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Box 7 social security tips</label>
+                    <InputNumber class="form-control" @bind-Value="record.Box7SocialSecurityTips" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Box 8 allocated tips</label>
+                    <InputNumber class="form-control" @bind-Value="record.Box8AllocatedTips" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Box 10 dependent care</label>
+                    <InputNumber class="form-control" @bind-Value="record.Box10DependentCareBenefits" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Box 11 nonqualified plans</label>
+                    <InputNumber class="form-control" @bind-Value="record.Box11NonqualifiedPlans" />
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label">Box 12 code A</label>
+                    <InputText class="form-control" @bind-Value="record.Box12CodeA" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Box 12 amount A</label>
+                    <InputNumber class="form-control" @bind-Value="record.Box12AmountA" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Box 12 code B</label>
+                    <InputText class="form-control" @bind-Value="record.Box12CodeB" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Box 12 amount B</label>
+                    <InputNumber class="form-control" @bind-Value="record.Box12AmountB" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Box 12 code C</label>
+                    <InputText class="form-control" @bind-Value="record.Box12CodeC" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Box 12 amount C</label>
+                    <InputNumber class="form-control" @bind-Value="record.Box12AmountC" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Box 12 code D</label>
+                    <InputText class="form-control" @bind-Value="record.Box12CodeD" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Box 12 amount D</label>
+                    <InputNumber class="form-control" @bind-Value="record.Box12AmountD" />
+                </div>
+
+                <div class="col-md-3 form-check ms-2">
+                    <InputCheckbox class="form-check-input" @bind-Value="record.Box13StatutoryEmployee" />
+                    <label class="form-check-label">Box 13 statutory employee</label>
+                </div>
+                <div class="col-md-3 form-check">
+                    <InputCheckbox class="form-check-input" @bind-Value="record.Box13RetirementPlan" />
+                    <label class="form-check-label">Box 13 retirement plan</label>
+                </div>
+                <div class="col-md-3 form-check">
+                    <InputCheckbox class="form-check-input" @bind-Value="record.Box13ThirdPartySickPay" />
+                    <label class="form-check-label">Box 13 third-party sick pay</label>
+                </div>
+
+                <div class="col-md-3">
+                    <label class="form-label">Box 14 description 1</label>
+                    <InputText class="form-control" @bind-Value="record.Box14OtherDescription1" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Box 14 amount 1</label>
+                    <InputNumber class="form-control" @bind-Value="record.Box14OtherAmount1" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Box 14 description 2</label>
+                    <InputText class="form-control" @bind-Value="record.Box14OtherDescription2" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Box 14 amount 2</label>
+                    <InputNumber class="form-control" @bind-Value="record.Box14OtherAmount2" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Box 14 description 3</label>
+                    <InputText class="form-control" @bind-Value="record.Box14OtherDescription3" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Box 14 amount 3</label>
+                    <InputNumber class="form-control" @bind-Value="record.Box14OtherAmount3" />
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label">State 1</label>
+                    <InputText class="form-control" maxlength="2" @bind-Value="record.State1" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Employer state ID 1 masked</label>
+                    <InputText class="form-control" @bind-Value="record.EmployerStateId1Masked" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">State wages 1</label>
+                    <InputNumber class="form-control" @bind-Value="record.StateWages1" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">State income tax 1</label>
+                    <InputNumber class="form-control" @bind-Value="record.StateIncomeTax1" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Locality name 1</label>
+                    <InputText class="form-control" @bind-Value="record.LocalityName1" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Local wages 1</label>
+                    <InputNumber class="form-control" @bind-Value="record.LocalWages1" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Local income tax 1</label>
+                    <InputNumber class="form-control" @bind-Value="record.LocalIncomeTax1" />
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label">State 2</label>
+                    <InputText class="form-control" maxlength="2" @bind-Value="record.State2" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Employer state ID 2 masked</label>
+                    <InputText class="form-control" @bind-Value="record.EmployerStateId2Masked" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">State wages 2</label>
+                    <InputNumber class="form-control" @bind-Value="record.StateWages2" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">State income tax 2</label>
+                    <InputNumber class="form-control" @bind-Value="record.StateIncomeTax2" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Locality name 2</label>
+                    <InputText class="form-control" @bind-Value="record.LocalityName2" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Local wages 2</label>
+                    <InputNumber class="form-control" @bind-Value="record.LocalWages2" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Local income tax 2</label>
+                    <InputNumber class="form-control" @bind-Value="record.LocalIncomeTax2" />
+                </div>
+
+                <div class="col-md-12">
+                    <label class="form-label">Review notes</label>
+                    <InputTextArea class="form-control" @bind-Value="record.ReviewNotes" />
+                </div>
+                <div class="col-md-12">
+                    <label class="form-label">Safe extracted text preview</label>
+                    <textarea class="form-control" rows="6" readonly>@record.RawExtractedTextPreview</textarea>
+                </div>
+                <div class="col-md-12 form-check ms-2">
+                    <InputCheckbox class="form-check-input" @bind-Value="record.UserConfirmed" />
+                    <label class="form-check-label">I reviewed the extracted W-2 information and understand it is user-provided historical data.</label>
+                </div>
+            </div>
+        </section>
+    }
+}
+
+@code {
+    private IBrowserFile? selectedFile;
+    private W2ImportBatch? batch;
+    private string? statusMessage;
+    private string? errorMessage;
+
+    private bool CanParse => selectedFile != null;
+    private bool CanSave => batch?.Records.Count > 0 && batch.Records.All(record => record.UserConfirmed) == true;
+
+    private void OnFileSelected(InputFileChangeEventArgs args)
+    {
+        selectedFile = args.File;
+        batch = null;
+        statusMessage = null;
+        errorMessage = null;
+    }
+
+    private async Task ParsePdfAsync()
+    {
+        if (selectedFile == null)
+        {
+            return;
+        }
+
+        try
+        {
+            await using var stream = selectedFile.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+            batch = await W2PdfImportService.ParsePdfAsync(stream, selectedFile.Name);
+            statusMessage = "PDF parsing complete. Review and correct extracted values before saving.";
+            errorMessage = null;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Unable to parse the selected PDF locally: {ex.Message}";
+            statusMessage = null;
+        }
+    }
+
+    private async Task SaveReviewedRecordsAsync()
+    {
+        if (batch == null)
+        {
+            return;
+        }
+
+        try
+        {
+            batch = await W2PdfImportService.SaveReviewedImportAsync(batch, batch.Records);
+            statusMessage = $"Saved {batch.RecordCount} reviewed W-2 PDF record(s) as historical user-provided data.";
+            errorMessage = null;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+            statusMessage = null;
+        }
+    }
+
+    private void CancelImport()
+    {
+        if (batch != null)
+        {
+            batch.ImportStatus = W2ImportStatus.Cancelled;
+            batch.UpdatedAt = DateTime.UtcNow;
+            statusMessage = "Import cancelled. No records were saved.";
+            errorMessage = null;
+        }
+    }
+
+    private void ClearImport()
+    {
+        selectedFile = null;
+        batch = null;
+        statusMessage = "Import cleared.";
+        errorMessage = null;
+    }
+
+    private static string GetMessageRowClass(W2ImportErrorSeverity severity)
+    {
+        return severity switch
+        {
+            W2ImportErrorSeverity.Error => "table-danger",
+            W2ImportErrorSeverity.Warning => "table-warning",
+            _ => string.Empty
+        };
+    }
+
+    private static string GetConfidenceClass(decimal confidence)
+    {
+        return confidence >= 0.85m ? "text-bg-success" : confidence >= 0.5m ? "text-bg-warning" : "text-bg-danger";
+    }
+}

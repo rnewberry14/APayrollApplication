@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "6gYqSSBR5+w=",
+  "dgSpecHash": "dFFpeC+XxzE=",
   "success": true,
   "projectFilePath": "D:\\Richard\\Git Repos\\ClearPathPayroll\\tests\\ClearPathPayroll.Tests\\ClearPathPayroll.Tests.csproj",
   "expectedPackageFiles": [
@@ -157,6 +157,11 @@
     "C:\\Users\\richard.GOADVANCEDMICRO\\.nuget\\packages\\system.windows.extensions\\6.0.0\\system.windows.extensions.6.0.0.nupkg.sha512",
     "C:\\Users\\richard.GOADVANCEDMICRO\\.nuget\\packages\\system.xml.readerwriter\\4.3.0\\system.xml.readerwriter.4.3.0.nupkg.sha512",
     "C:\\Users\\richard.GOADVANCEDMICRO\\.nuget\\packages\\system.xml.xdocument\\4.3.0\\system.xml.xdocument.4.3.0.nupkg.sha512",
+    "C:\\Users\\richard.GOADVANCEDMICRO\\.nuget\\packages\\uglytoad.pdfpig\\1.7.0-custom-5\\uglytoad.pdfpig.1.7.0-custom-5.nupkg.sha512",
+    "C:\\Users\\richard.GOADVANCEDMICRO\\.nuget\\packages\\uglytoad.pdfpig.core\\1.7.0-custom-5\\uglytoad.pdfpig.core.1.7.0-custom-5.nupkg.sha512",
+    "C:\\Users\\richard.GOADVANCEDMICRO\\.nuget\\packages\\uglytoad.pdfpig.fonts\\1.7.0-custom-5\\uglytoad.pdfpig.fonts.1.7.0-custom-5.nupkg.sha512",
+    "C:\\Users\\richard.GOADVANCEDMICRO\\.nuget\\packages\\uglytoad.pdfpig.tokenization\\1.7.0-custom-5\\uglytoad.pdfpig.tokenization.1.7.0-custom-5.nupkg.sha512",
+    "C:\\Users\\richard.GOADVANCEDMICRO\\.nuget\\packages\\uglytoad.pdfpig.tokens\\1.7.0-custom-5\\uglytoad.pdfpig.tokens.1.7.0-custom-5.nupkg.sha512",
     "C:\\Users\\richard.GOADVANCEDMICRO\\.nuget\\packages\\xunit\\2.5.3\\xunit.2.5.3.nupkg.sha512",
     "C:\\Users\\richard.GOADVANCEDMICRO\\.nuget\\packages\\xunit.abstractions\\2.0.3\\xunit.abstractions.2.0.3.nupkg.sha512",
     "C:\\Users\\richard.GOADVANCEDMICRO\\.nuget\\packages\\xunit.analyzers\\1.4.0\\xunit.analyzers.1.4.0.nupkg.sha512",

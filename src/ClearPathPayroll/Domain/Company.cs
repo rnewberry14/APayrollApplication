@@ -7,7 +7,7 @@ namespace ClearPathPayroll.Domain;
 /// Represents a company in the payroll system.
 /// </summary>
 [Table("Companies")]
-public class Company
+public class Company : IValidatableObject
 {
     /// <summary>
     /// Unique identifier for the company.
@@ -63,6 +63,12 @@ public class Company
     [StringLength(10)]
     public string ZipCode { get; set; } = string.Empty;
 
+    [StringLength(100)]
+    public string? County { get; set; }
+
+    [StringLength(100)]
+    public string? LocalTaxLocalityPlaceholder { get; set; }
+
     /// <summary>
     /// Phone number of the company.
     /// </summary>
@@ -99,4 +105,63 @@ public class Company
     /// </summary>
     [Required]
     public bool IsActive { get; set; } = true;
+
+    [Range(0, 100)]
+    public decimal? FutaRatePlaceholder { get; set; }
+
+    [StringLength(2)]
+    public string? SutaState { get; set; }
+
+    [StringLength(100)]
+    public string? SutaEmployerAccountNumberPlaceholder { get; set; }
+
+    [Range(0, 100)]
+    public decimal? SutaRate { get; set; }
+
+    [StringLength(100)]
+    public string? StateWithholdingAccountNumberPlaceholder { get; set; }
+
+    [StringLength(100)]
+    public string? LocalTaxAccountNumberPlaceholder { get; set; }
+
+    [StringLength(100)]
+    public string? DepositSchedulePlaceholder { get; set; }
+
+    [StringLength(100)]
+    public string? FilingFrequencyPlaceholder { get; set; }
+
+    public DateTime? EmployerTaxEffectiveDate { get; set; }
+
+    [StringLength(2000)]
+    public string? EmployerTaxNotes { get; set; }
+
+    public ICollection<PayrollItem> PayrollItems { get; set; } = new List<PayrollItem>();
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        foreach (var result in ValidatePlaceholderAccount(nameof(SutaEmployerAccountNumberPlaceholder), SutaEmployerAccountNumberPlaceholder))
+        {
+            yield return result;
+        }
+
+        foreach (var result in ValidatePlaceholderAccount(nameof(StateWithholdingAccountNumberPlaceholder), StateWithholdingAccountNumberPlaceholder))
+        {
+            yield return result;
+        }
+
+        foreach (var result in ValidatePlaceholderAccount(nameof(LocalTaxAccountNumberPlaceholder), LocalTaxAccountNumberPlaceholder))
+        {
+            yield return result;
+        }
+    }
+
+    private static IEnumerable<ValidationResult> ValidatePlaceholderAccount(string memberName, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value) && value.Length >= 5 && value.All(char.IsDigit))
+        {
+            yield return new ValidationResult(
+                "Account number fields require a placeholder or masked value, not a plain account number.",
+                new[] { memberName });
+        }
+    }
 }

@@ -1,0 +1,388 @@
+@page "/setup/employees"
+@using System.ComponentModel.DataAnnotations
+@using ClearPathPayroll.Domain
+@using ClearPathPayroll.Services
+@inject CompanyService CompanyService
+@inject EmployeeService EmployeeService
+
+<PageTitle>Employee Setup - ClearPath Payroll</PageTitle>
+
+<div class="container-fluid mt-4">
+    <NoAdviceDisclaimer />
+
+    <div class="alert alert-success" role="status">
+        <strong>Local Demo Mode:</strong> Employee setup data is stored locally. This page does not transmit data externally, submit ACH, or submit tax filings.
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2>Employee Setup</h2>
+            <p class="text-muted">Add and edit local employee payroll profile records.</p>
+        </div>
+        <div class="col-md-4 text-md-end">
+            <a class="btn btn-outline-secondary me-2" href="/help?article=employee-setup">Help</a>
+            <button class="btn btn-primary" @onclick="StartNewEmployee" disabled="@(selectedCompanyId == 0)">Add New Employee</button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(statusMessage))
+    {
+        <div class="alert @statusClass alert-dismissible fade show" role="status">
+            @statusMessage
+            <button type="button" class="btn-close" @onclick="() => statusMessage = string.Empty"></button>
+        </div>
+    }
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <label class="form-label" for="company">Company</label>
+            <select id="company" class="form-select" value="@selectedCompanyId" @onchange="OnCompanyChanged">
+                <option value="0">Select a company</option>
+                @foreach (var company in companies)
+                {
+                    <option value="@company.CompanyId">@company.LegalName</option>
+                }
+            </select>
+        </div>
+    </div>
+
+    @if (selectedCompanyId > 0)
+    {
+        <div class="row">
+            <div class="col-xl-4">
+                <div class="card mb-4">
+                    <div class="card-header bg-light">Employees</div>
+                    <div class="table-responsive">
+                        <table class="table table-striped mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Status</th>
+                                    <th class="text-end">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (employees.Count == 0)
+                                {
+                                    <tr><td colspan="3" class="text-center text-muted">No employees found.</td></tr>
+                                }
+                                else
+                                {
+                                    @foreach (var employee in employees)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <strong>@employee.LastName, @employee.FirstName</strong>
+                                                <div class="small text-muted">SSN last 4: @employee.SSNLast4</div>
+                                            </td>
+                                            <td>@employee.EmploymentStatus</td>
+                                            <td class="text-end">
+                                                <button class="btn btn-sm btn-outline-primary" @onclick="() => EditEmployee(employee.EmployeeId)">Edit Employee</button>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-8">
+                @if (editingEmployee == null)
+                {
+                    <div class="alert alert-info">Select an employee or click Add New Employee.</div>
+                }
+                else
+                {
+                    <EditForm Model="editingEmployee" OnValidSubmit="SaveEmployee">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+                        <div class="card mb-4">
+                            <div class="card-header bg-light d-flex flex-wrap gap-2">
+                                @foreach (var tab in Tabs)
+                                {
+                                    <button type="button" class="btn btn-sm @(activeTab == tab ? "btn-primary" : "btn-outline-secondary")" @onclick="() => activeTab = tab">@tab</button>
+                                }
+                            </div>
+                            <div class="card-body">
+                                @if (activeTab == "Demographics")
+                                {
+                                    <div class="row g-3">
+                                        <div class="col-md-4"><label class="form-label">First name</label><InputText class="form-control" @bind-Value="editingEmployee.FirstName" /><ValidationMessage For="() => editingEmployee.FirstName" /></div>
+                                        <div class="col-md-2"><label class="form-label">Middle initial</label><InputText class="form-control" @bind-Value="editingEmployee.MiddleInitial" /></div>
+                                        <div class="col-md-4"><label class="form-label">Last name</label><InputText class="form-control" @bind-Value="editingEmployee.LastName" /><ValidationMessage For="() => editingEmployee.LastName" /></div>
+                                        <div class="col-md-2"><label class="form-label">Suffix</label><InputText class="form-control" @bind-Value="editingEmployee.Suffix" /></div>
+                                        <div class="col-md-4"><label class="form-label">Preferred name</label><InputText class="form-control" @bind-Value="editingEmployee.PreferredName" /></div>
+                                        <div class="col-md-4"><label class="form-label">SSN last 4 only</label><InputText class="form-control" maxlength="4" @bind-Value="editingEmployee.SSNLast4" /><ValidationMessage For="() => editingEmployee.SSNLast4" /></div>
+                                        <div class="col-md-4"><label class="form-label">Date of birth</label><InputDate class="form-control" @bind-Value="editingEmployee.DateOfBirth" /></div>
+                                        <div class="col-md-8"><label class="form-label">Address</label><InputText class="form-control" @bind-Value="editingEmployee.Address1" /></div>
+                                        <div class="col-md-4"><label class="form-label">Address 2</label><InputText class="form-control" @bind-Value="editingEmployee.Address2" /></div>
+                                        <div class="col-md-3"><label class="form-label">City</label><InputText class="form-control" @bind-Value="editingEmployee.City" /></div>
+                                        <div class="col-md-2"><label class="form-label">State</label><InputText class="form-control" maxlength="2" @bind-Value="editingEmployee.State" /></div>
+                                        <div class="col-md-2"><label class="form-label">ZIP</label><InputText class="form-control" @bind-Value="editingEmployee.ZipCode" /></div>
+                                        <div class="col-md-3"><label class="form-label">County</label><InputText class="form-control" @bind-Value="editingEmployee.County" /></div>
+                                        <div class="col-md-4"><label class="form-label">Email</label><InputText class="form-control" @bind-Value="editingEmployee.Email" /></div>
+                                        <div class="col-md-4"><label class="form-label">Phone</label><InputText class="form-control" @bind-Value="editingEmployee.Phone" /></div>
+                                    </div>
+                                }
+                                else if (activeTab == "Employment")
+                                {
+                                    <div class="row g-3">
+                                        <div class="col-md-3"><label class="form-label">Employee number</label><InputText class="form-control" @bind-Value="editingEmployee.EmployeeNumber" /></div>
+                                        <div class="col-md-3"><label class="form-label">Hire date</label><InputDate class="form-control" @bind-Value="editingEmployee.HireDate" /></div>
+                                        <div class="col-md-3"><label class="form-label">Rehire date</label><InputDate class="form-control" @bind-Value="editingEmployee.RehireDate" /></div>
+                                        <div class="col-md-3"><label class="form-label">Termination date</label><InputDate class="form-control" @bind-Value="editingEmployee.TerminationDate" /></div>
+                                        <div class="col-md-4"><label class="form-label">Employment status</label><InputSelect class="form-select" @bind-Value="editingEmployee.EmploymentStatus">@foreach (var value in Enum.GetValues<EmploymentStatus>()) { <option value="@value">@value</option> }</InputSelect></div>
+                                        <div class="col-md-4"><label class="form-label">Worker type</label><InputSelect class="form-select" @bind-Value="editingEmployee.WorkerType">@foreach (var value in Enum.GetValues<WorkerType>()) { <option value="@value">@value</option> }</InputSelect></div>
+                                        <div class="col-md-4"><label class="form-label">Work location</label><InputNumber class="form-control" @bind-Value="editingEmployee.WorkLocationId" /></div>
+                                        <div class="col-md-4"><label class="form-label">Department</label><InputText class="form-control" @bind-Value="editingEmployee.Department" /></div>
+                                        <div class="col-md-4"><label class="form-label">Job title</label><InputText class="form-control" @bind-Value="editingEmployee.JobTitle" /></div>
+                                        <div class="col-md-12 d-flex flex-wrap gap-4">
+                                            <label class="form-check"><InputCheckbox class="form-check-input" @bind-Value="editingEmployee.IsActive" /> Active</label>
+                                            <label class="form-check"><InputCheckbox class="form-check-input" @bind-Value="editingEmployee.IsTippedEmployee" /> Tipped employee</label>
+                                            <label class="form-check"><InputCheckbox class="form-check-input" @bind-Value="editingEmployee.IsExemptFromOvertime" /> Exempt from overtime</label>
+                                        </div>
+                                    </div>
+                                }
+                                else if (activeTab == "Pay")
+                                {
+                                    <div class="row g-3">
+                                        <div class="col-md-4"><label class="form-label">Pay type</label><InputSelect class="form-select" @bind-Value="editingEmployee.PayType">@foreach (var value in Enum.GetValues<PayType>()) { <option value="@value">@value</option> }</InputSelect></div>
+                                        <div class="col-md-4"><label class="form-label">Hourly rate</label><InputNumber class="form-control" @bind-Value="editingEmployee.HourlyRate" /></div>
+                                        <div class="col-md-4"><label class="form-label">Annual salary</label><InputNumber class="form-control" @bind-Value="editingEmployee.AnnualSalary" /></div>
+                                        <div class="col-md-3"><label class="form-label">Default regular hours</label><InputNumber class="form-control" @bind-Value="editingEmployee.DefaultRegularHours" /></div>
+                                        <div class="col-md-3"><label class="form-label">Default overtime hours</label><InputNumber class="form-control" @bind-Value="editingEmployee.DefaultOvertimeHours" /></div>
+                                        <div class="col-md-3"><label class="form-label">Default pay frequency</label><InputSelect class="form-select" @bind-Value="editingEmployee.DefaultPayFrequency"><option value="">None</option>@foreach (var value in Enum.GetValues<PayFrequency>()) { <option value="@value">@value</option> }</InputSelect></div>
+                                        <div class="col-md-3"><label class="form-label">Tipped cash wage rate</label><InputNumber class="form-control" @bind-Value="editingEmployee.TippedCashWageRate" disabled="@(!editingEmployee.IsTippedEmployee)" /></div>
+                                        <div class="col-md-12"><label class="form-check"><InputCheckbox class="form-check-input" @bind-Value="editingEmployee.MinimumWageWarningEnabled" /> Minimum wage warning enabled</label></div>
+                                    </div>
+                                }
+                                else if (activeTab == "Federal W-4")
+                                {
+                                    <div class="row g-3">
+                                        <div class="col-md-4"><label class="form-label">Filing status</label><InputSelect class="form-select" @bind-Value="editingEmployee.FilingStatus">@foreach (var value in Enum.GetValues<FederalFilingStatus>()) { <option value="@value">@value</option> }</InputSelect></div>
+                                        <div class="col-md-4"><label class="form-label">Dependents amount</label><InputNumber class="form-control" @bind-Value="editingEmployee.DependentsAmount" /></div>
+                                        <div class="col-md-4"><label class="form-label">Other income</label><InputNumber class="form-control" @bind-Value="editingEmployee.OtherIncome" /></div>
+                                        <div class="col-md-4"><label class="form-label">Deductions</label><InputNumber class="form-control" @bind-Value="editingEmployee.Deductions" /></div>
+                                        <div class="col-md-4"><label class="form-label">Extra withholding</label><InputNumber class="form-control" @bind-Value="editingEmployee.ExtraWithholding" /></div>
+                                        <div class="col-md-2"><label class="form-label">W-4 year</label><InputNumber class="form-control" @bind-Value="editingEmployee.W4Year" /></div>
+                                        <div class="col-md-2"><label class="form-label">Signed date</label><InputDate class="form-control" @bind-Value="editingEmployee.W4SignedDate" /></div>
+                                        <div class="col-md-12 d-flex flex-wrap gap-4">
+                                            <label class="form-check"><InputCheckbox class="form-check-input" @bind-Value="editingEmployee.MultipleJobsOrSpouseWorks" /> Multiple jobs/spouse works</label>
+                                            <label class="form-check"><InputCheckbox class="form-check-input" @bind-Value="editingEmployee.ExemptFromFederalWithholding" /> Exempt from federal withholding</label>
+                                        </div>
+                                        <div class="col-md-12"><label class="form-label">Notes</label><InputTextArea class="form-control" @bind-Value="editingEmployee.W4Notes" /></div>
+                                    </div>
+                                }
+                                else if (activeTab == "State Tax")
+                                {
+                                    <div class="row g-3">
+                                        <div class="col-md-2"><label class="form-label">State</label><InputText class="form-control" maxlength="2" @bind-Value="editingEmployee.StateTaxState" /></div>
+                                        <div class="col-md-4"><label class="form-label">State filing status</label><InputSelect class="form-select" @bind-Value="editingEmployee.StateFilingStatus">@foreach (var value in Enum.GetValues<StateFilingStatus>()) { <option value="@value">@value</option> }</InputSelect></div>
+                                        <div class="col-md-3"><label class="form-label">Allowances</label><InputNumber class="form-control" @bind-Value="editingEmployee.StateAllowances" /></div>
+                                        <div class="col-md-3"><label class="form-label">Additional withholding</label><InputNumber class="form-control" @bind-Value="editingEmployee.StateAdditionalWithholding" /></div>
+                                        <div class="col-md-4"><label class="form-label">Form version</label><InputText class="form-control" @bind-Value="editingEmployee.StateTaxFormVersion" /></div>
+                                        <div class="col-md-4"><label class="form-label">Signed date</label><InputDate class="form-control" @bind-Value="editingEmployee.StateTaxSignedDate" /></div>
+                                        <div class="col-md-4"><label class="form-check mt-4"><InputCheckbox class="form-check-input" @bind-Value="editingEmployee.StateExemptFromWithholding" /> Exempt</label></div>
+                                        <div class="col-md-12"><label class="form-label">Notes</label><InputTextArea class="form-control" @bind-Value="editingEmployee.StateTaxNotes" /></div>
+                                    </div>
+                                }
+                                else if (activeTab == "Direct Deposit")
+                                {
+                                    <div class="alert alert-info">Use token placeholder fields only. Do not enter full routing or bank account numbers.</div>
+                                    <button type="button" class="btn btn-sm btn-outline-primary mb-3" @onclick="AddBankAccount" disabled="@(editingEmployee.BankAccounts.Count >= 5)">Add Direct Deposit Account</button>
+                                    @foreach (var account in editingEmployee.BankAccounts.ToList())
+                                    {
+                                        <div class="border rounded p-3 mb-3">
+                                            <div class="d-flex justify-content-between mb-2">
+                                                <strong>Account @account.PriorityOrder</strong>
+                                                <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => RemoveBankAccount(account)">Remove</button>
+                                            </div>
+                                            <div class="row g-3">
+                                                <div class="col-md-2"><label class="form-label">Priority/order</label><InputNumber class="form-control" @bind-Value="account.PriorityOrder" /></div>
+                                                <div class="col-md-4"><label class="form-label">Bank name</label><InputText class="form-control" @bind-Value="account.BankName" /></div>
+                                                <div class="col-md-3"><label class="form-label">Account type</label><InputSelect class="form-select" @bind-Value="account.AccountType">@foreach (var value in Enum.GetValues<BankAccountType>()) { <option value="@value">@value</option> }</InputSelect></div>
+                                                <div class="col-md-3"><label class="form-label">Last 4</label><InputText class="form-control" maxlength="4" @bind-Value="account.Last4" /></div>
+                                                <div class="col-md-6"><label class="form-label">Routing token placeholder</label><InputText class="form-control" @bind-Value="account.RoutingNumberToken" /></div>
+                                                <div class="col-md-6"><label class="form-label">Account token placeholder</label><InputText class="form-control" @bind-Value="account.AccountNumberToken" /></div>
+                                                <div class="col-md-3"><label class="form-label">Deposit type</label><InputSelect class="form-select" @bind-Value="account.DepositType">@foreach (var value in Enum.GetValues<DirectDepositDepositType>()) { <option value="@value">@value</option> }</InputSelect></div>
+                                                <div class="col-md-3"><label class="form-label">Amount</label><InputNumber class="form-control" @bind-Value="account.DepositAmount" /></div>
+                                                <div class="col-md-3"><label class="form-label">Percent</label><InputNumber class="form-control" @bind-Value="account.DepositPercent" /></div>
+                                                <div class="col-md-3"><label class="form-check mt-4"><InputCheckbox class="form-check-input" @bind-Value="account.IsRemainderAccount" /> Remainder account</label></div>
+                                                <div class="col-md-4"><label class="form-label">Verification status</label><InputSelect class="form-select" @bind-Value="account.VerificationStatus">@foreach (var value in Enum.GetValues<VerificationStatus>()) { <option value="@value">@value</option> }</InputSelect></div>
+                                                <div class="col-md-4"><label class="form-label">Prenote status placeholder</label><InputSelect class="form-select" @bind-Value="account.PrenoteStatus">@foreach (var value in Enum.GetValues<PrenoteStatus>()) { <option value="@value">@value</option> }</InputSelect></div>
+                                                <div class="col-md-4"><label class="form-check mt-4"><InputCheckbox class="form-check-input" @bind-Value="account.IsActive" /> Active</label></div>
+                                            </div>
+                                        </div>
+                                    }
+                                }
+                                else if (activeTab == "User-Defined Fields")
+                                {
+                                    <button type="button" class="btn btn-sm btn-outline-primary mb-3" @onclick="AddPayrollField">Add Field Value</button>
+                                    @foreach (var field in editingEmployee.PayrollFields.ToList())
+                                    {
+                                        <div class="row g-3 align-items-end mb-2">
+                                            <div class="col-md-4"><label class="form-label">Field name</label><InputText class="form-control" @bind-Value="field.FieldName" /></div>
+                                            <div class="col-md-7"><label class="form-label">Value</label><InputText class="form-control" @bind-Value="field.FieldValue" /></div>
+                                            <div class="col-md-1"><button type="button" class="btn btn-outline-danger" @onclick="() => RemovePayrollField(field)">Remove</button></div>
+                                        </div>
+                                    }
+                                }
+                                else if (activeTab == "Notes")
+                                {
+                                    <label class="form-label">Payroll notes</label>
+                                    <InputTextArea class="form-control" rows="8" @bind-Value="editingEmployee.PayrollNotes" />
+                                    <div class="text-muted mt-3">
+                                        Created: @editingEmployee.PayrollProfileCreatedAt.ToString("MM/dd/yyyy h:mm tt")
+                                        @if (editingEmployee.PayrollProfileUpdatedAt.HasValue)
+                                        {
+                                            <span> | Updated: @editingEmployee.PayrollProfileUpdatedAt.Value.ToString("MM/dd/yyyy h:mm tt")</span>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                            <div class="card-footer d-flex gap-2">
+                                <button type="submit" class="btn btn-primary" disabled="@isSaving">Save</button>
+                                <button type="button" class="btn btn-outline-secondary" @onclick="CancelEdit" disabled="@isSaving">Cancel</button>
+                            </div>
+                        </div>
+                    </EditForm>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private static readonly string[] Tabs = ["Demographics", "Employment", "Pay", "Federal W-4", "State Tax", "Direct Deposit", "User-Defined Fields", "Notes"];
+    private List<Company> companies = new();
+    private List<Employee> employees = new();
+    private int selectedCompanyId;
+    private Employee? editingEmployee;
+    private string activeTab = "Demographics";
+    private bool isSaving;
+    private string statusMessage = string.Empty;
+    private string statusClass = "alert-info";
+
+    protected override async Task OnInitializedAsync()
+    {
+        companies = await CompanyService.GetAllActiveCompaniesAsync();
+        if (companies.Count == 1)
+        {
+            selectedCompanyId = companies[0].CompanyId;
+            await LoadEmployees();
+        }
+    }
+
+    private async Task OnCompanyChanged(ChangeEventArgs args)
+    {
+        selectedCompanyId = int.TryParse(args.Value?.ToString(), out var value) ? value : 0;
+        editingEmployee = null;
+        await LoadEmployees();
+    }
+
+    private async Task LoadEmployees()
+    {
+        employees = selectedCompanyId == 0
+            ? new List<Employee>()
+            : await EmployeeService.GetEmployeesByCompanyAsync(selectedCompanyId);
+    }
+
+    private void StartNewEmployee()
+    {
+        editingEmployee = new Employee
+        {
+            CompanyId = selectedCompanyId,
+            DateOfBirth = DateTime.Today.AddYears(-30),
+            HireDate = DateTime.Today,
+            EmploymentStatus = EmploymentStatus.Active,
+            WorkerType = WorkerType.W2Employee,
+            PayType = PayType.Hourly,
+            IsActive = true,
+            MinimumWageWarningEnabled = true,
+            PayrollProfileCreatedAt = DateTime.UtcNow
+        };
+        activeTab = "Demographics";
+    }
+
+    private async Task EditEmployee(int employeeId)
+    {
+        editingEmployee = await EmployeeService.GetEmployeeByIdAsync(employeeId);
+        activeTab = "Demographics";
+    }
+
+    private async Task SaveEmployee()
+    {
+        if (editingEmployee == null)
+        {
+            return;
+        }
+
+        isSaving = true;
+        statusMessage = string.Empty;
+        try
+        {
+            await EmployeeService.SaveEmployeePayrollProfileAsync(editingEmployee);
+            await LoadEmployees();
+            editingEmployee = null;
+            statusClass = "alert-success";
+            statusMessage = "Employee payroll profile saved locally.";
+        }
+        catch (ValidationException ex)
+        {
+            statusClass = "alert-danger";
+            statusMessage = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            statusClass = "alert-danger";
+            statusMessage = $"Unable to save employee: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void CancelEdit()
+    {
+        editingEmployee = null;
+        statusMessage = string.Empty;
+    }
+
+    private void AddBankAccount()
+    {
+        if (editingEmployee == null || editingEmployee.BankAccounts.Count >= 5)
+        {
+            return;
+        }
+
+        editingEmployee.BankAccounts.Add(new EmployeeBankAccount
+        {
+            PriorityOrder = editingEmployee.BankAccounts.Count + 1,
+            AccountType = BankAccountType.Checking,
+            DepositType = DirectDepositDepositType.Remainder,
+            IsRemainderAccount = !editingEmployee.BankAccounts.Any(account => account.IsRemainderAccount),
+            VerificationStatus = VerificationStatus.Pending,
+            PrenoteStatus = PrenoteStatus.NotStarted,
+            IsActive = true
+        });
+    }
+
+    private void RemoveBankAccount(EmployeeBankAccount account)
+    {
+        editingEmployee?.BankAccounts.Remove(account);
+    }
+
+    private void AddPayrollField()
+    {
+        editingEmployee?.PayrollFields.Add(new EmployeePayrollField());
+    }
+
+    private void RemovePayrollField(EmployeePayrollField field)
+    {
+        editingEmployee?.PayrollFields.Remove(field);
+    }
+}

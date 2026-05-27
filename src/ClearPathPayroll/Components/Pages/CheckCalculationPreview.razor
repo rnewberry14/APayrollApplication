@@ -1,0 +1,251 @@
+@page "/payroll/check-calculation/{PayrollRunId:int}"
+@using ClearPathPayroll.Domain
+@using ClearPathPayroll.Services
+@inject CheckCalculationPreviewService CheckCalculationPreviewService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Check Calculation Preview - ClearPath Payroll</PageTitle>
+
+<div class="container-fluid mt-4">
+    @if (isLoading)
+    {
+        <div class="alert alert-info">Loading check calculation preview...</div>
+    }
+    else if (model.PayrollRun == null)
+    {
+        <div class="alert alert-danger">Payroll run not found.</div>
+    }
+    else
+    {
+        <NoAdviceDisclaimer />
+
+        <div class="alert alert-success" role="status">
+            <strong>Local Demo Mode:</strong> Check calculation preview stays in the local database. This page does not approve payroll, submit ACH, submit tax filings, or show full SSNs or bank account numbers.
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <h2>Check Calculation Preview</h2>
+                <p class="text-muted">Calculate, review, adjust, and recalculate employee checks before payroll approval.</p>
+            </div>
+            <div class="col-md-4 text-md-end">
+                <span class="badge bg-info">@model.PayrollRun.Status</span>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <label class="form-label text-muted">Company</label>
+                        <p class="lead">@(model.PayrollRun.Company?.LegalName ?? "N/A")</p>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label text-muted">Pay period</label>
+                        <p class="lead">@model.PayrollRun.PayPeriodStart.ToString("MM/dd/yyyy") - @model.PayrollRun.PayPeriodEnd.ToString("MM/dd/yyyy")</p>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label text-muted">Pay date</label>
+                        <p class="lead">@model.PayrollRun.PayDate.ToString("MM/dd/yyyy")</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @if (BlockingErrors.Count > 0)
+        {
+            <div class="alert alert-danger" role="alert">
+                <h5>Errors that block approval</h5>
+                <ul class="mb-0">
+                    @foreach (var error in BlockingErrors)
+                    {
+                        <li>@error</li>
+                    }
+                </ul>
+            </div>
+        }
+
+        @if (Warnings.Count > 0)
+        {
+            <div class="alert alert-warning" role="alert">
+                <h5>Warnings</h5>
+                <ul class="mb-0">
+                    @foreach (var warning in Warnings)
+                    {
+                        <li>@warning</li>
+                    }
+                </ul>
+            </div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(statusMessage))
+        {
+            <div class="alert @statusClass alert-dismissible fade show" role="status">
+                @statusMessage
+                <button type="button" class="btn-close" @onclick="() => statusMessage = string.Empty"></button>
+            </div>
+        }
+
+        <div class="mb-3 d-flex flex-wrap gap-2">
+            <button class="btn btn-primary" @onclick="RecalculateAll" disabled="@(isProcessing || BlockingErrors.Count > 0)">Recalculate All</button>
+            <button class="btn btn-outline-success" @onclick="ContinueToPreview">Continue to Payroll Preview / Approval</button>
+        </div>
+
+        @foreach (var input in inputs)
+        {
+            var check = model.PayrollRun.PayrollRunEmployees.First(pre => pre.PayrollRunEmployeeId == input.PayrollRunEmployeeId);
+            var employeeName = check.Employee == null ? $"Employee {check.EmployeeId}" : $"{check.Employee.FirstName} {check.Employee.LastName}".Trim();
+            var employerTaxes = model.PayrollRun.EmployerTaxLines.Where(line => line.EmployeeId == check.EmployeeId).Sum(line => line.Amount);
+
+            <div class="card mb-4">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>@employeeName</strong>
+                        <span class="text-muted ms-2">Employee ID: @check.EmployeeId</span>
+                    </div>
+                    <button class="btn btn-sm btn-outline-primary" @onclick="() => RecalculateCheck(input)" disabled="@(isProcessing || BlockingErrors.Count > 0)">Recalculate Check</button>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-2">
+                            <label class="form-label">Regular hours</label>
+                            <input type="number" step="0.01" class="form-control" @bind="input.RegularHours" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Overtime hours placeholder</label>
+                            <input type="number" step="0.01" class="form-control" @bind="input.OvertimeHours" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Additional earnings</label>
+                            <input type="number" step="0.01" class="form-control" @bind="input.AdditionalEarnings" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Manual deductions</label>
+                            <input type="number" step="0.01" class="form-control" @bind="input.ManualDeductions" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Reimbursements</label>
+                            <input type="number" step="0.01" class="form-control" @bind="input.Reimbursements" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Notes</label>
+                            <input class="form-control" @bind="input.Notes" />
+                        </div>
+                    </div>
+
+                    <div class="row text-end">
+                        <div class="col-md-2">
+                            <label class="form-label text-muted">Gross pay</label>
+                            <p class="lead">@check.GrossPay.ToString("C")</p>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label text-muted">Pre-tax deductions</label>
+                            <p class="lead">@check.DeductionLines.Where(line => line.Description == "Pre-Tax Deductions").Sum(line => line.Amount).ToString("C")</p>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label text-muted">Employee taxes</label>
+                            <p class="lead">@check.TotalTaxes.ToString("C")</p>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label text-muted">Post-tax deductions</label>
+                            <p class="lead">@check.DeductionLines.Where(line => line.Description == "Manual Deductions").Sum(line => line.Amount).ToString("C")</p>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label text-muted">Employer taxes</label>
+                            <p class="lead">@employerTaxes.ToString("C")</p>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label text-muted">Net pay</label>
+                            <p class="lead text-success">@check.NetPay.ToString("C")</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int PayrollRunId { get; set; }
+
+    private CheckCalculationPreviewModel model = new();
+    private List<CheckCalculationInput> inputs = new();
+    private bool isLoading = true;
+    private bool isProcessing;
+    private string statusMessage = string.Empty;
+    private string statusClass = "alert-info";
+    private const string PlaceholderUserId = "local-prototype-user";
+
+    private List<string> BlockingErrors => model.Errors;
+    private List<string> Warnings => model.Warnings;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPreview();
+    }
+
+    private async Task LoadPreview()
+    {
+        isLoading = true;
+        model = await CheckCalculationPreviewService.LoadPreviewAsync(PayrollRunId);
+        inputs = model.Inputs;
+        isLoading = false;
+    }
+
+    private async Task RecalculateCheck(CheckCalculationInput input)
+    {
+        isProcessing = true;
+        statusMessage = string.Empty;
+
+        try
+        {
+            var result = await CheckCalculationPreviewService.RecalculateCheckAsync(PayrollRunId, input, PlaceholderUserId);
+            await LoadPreview();
+            statusClass = result.Errors.Count == 0 ? "alert-success" : "alert-danger";
+            statusMessage = result.Errors.Count == 0
+                ? $"Check recalculated for {result.EmployeeName}. Review totals before approval."
+                : string.Join(" ", result.Errors);
+        }
+        catch (Exception ex)
+        {
+            statusClass = "alert-danger";
+            statusMessage = ex.Message;
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private async Task RecalculateAll()
+    {
+        isProcessing = true;
+        statusMessage = string.Empty;
+
+        try
+        {
+            var results = await CheckCalculationPreviewService.RecalculateAllAsync(PayrollRunId, inputs, PlaceholderUserId);
+            await LoadPreview();
+            var errors = results.SelectMany(result => result.Errors).ToList();
+            statusClass = errors.Count == 0 ? "alert-success" : "alert-danger";
+            statusMessage = errors.Count == 0
+                ? $"Recalculated {results.Count} check(s). Review totals before approval."
+                : string.Join(" ", errors);
+        }
+        catch (Exception ex)
+        {
+            statusClass = "alert-danger";
+            statusMessage = ex.Message;
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private void ContinueToPreview()
+    {
+        NavigationManager.NavigateTo($"/payroll/preview/{PayrollRunId}");
+    }
+}

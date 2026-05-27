@@ -1,0 +1,298 @@
+@page "/import/tax-deposits"
+@using ClearPathPayroll.Services
+@inject TaxDepositsImportService DepositImportService
+
+<PageTitle>Tax Deposits Import - ClearPath Payroll</PageTitle>
+
+<div class="container-fluid mt-4">
+    <NoAdviceDisclaimer />
+
+    <div class="alert alert-success" role="status">
+        <strong>Local import:</strong> Tax deposit files are parsed locally and saved only after confirmation. This workflow does not submit payments, file taxes, or call IRS/state systems.
+    </div>
+
+    <div class="alert alert-warning" role="alert">
+        Imported deposits are shown as “User-entered deposit record” entries. ClearPath Payroll does not claim imported deposit records are verified.
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header bg-light">Tax Deposit Columns</div>
+        <div class="card-body">
+            <p class="mb-2"><strong>Required:</strong> CompanyIdentifier, DepositDate, TaxPeriodStart, TaxPeriodEnd, TaxType, Agency, Amount, PaymentMethod.</p>
+            <p class="mb-0"><strong>Optional:</strong> ConfirmationNumber, Notes.</p>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-lg-8">
+            <h2>Tax Deposits Import</h2>
+            <p class="text-muted">Import historical user-entered deposit records for local review and reporting.</p>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(statusMessage))
+    {
+        <div class="alert @statusClass" role="status">@statusMessage</div>
+    }
+
+    <div class="card mb-4">
+        <div class="card-header bg-light">1. Select Local File</div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-7">
+                    <label class="form-label" for="depositFile">Tax deposit file</label>
+                    <InputFile id="depositFile" class="form-control" OnChange="OnFileSelected" />
+                    <div class="form-text">Accepted formats: .csv, .txt, .tsv, .tab, and first worksheet of .xlsx.</div>
+                </div>
+                <div class="col-md-5">
+                    <label class="form-check mt-4">
+                        <input class="form-check-input" type="checkbox" @bind="reviewAcknowledged" />
+                        Review warning acknowledged
+                    </label>
+                </div>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(selectedFileName))
+            {
+                <div class="small text-muted mt-3">Selected file: @selectedFileName</div>
+            }
+        </div>
+    </div>
+
+    @if (parseResult != null)
+    {
+        <div class="card mb-4">
+            <div class="card-header bg-light">2. Map Columns</div>
+            <div class="card-body">
+                @foreach (var warning in parseResult.Warnings)
+                {
+                    <div class="alert alert-warning">@warning</div>
+                }
+
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th>Source column</th>
+                                <th>Tax deposit field</th>
+                                <th>Required by mapping</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var mapping in mappingInputs)
+                            {
+                                <tr>
+                                    <td>@mapping.SourceColumn</td>
+                                    <td>
+                                        <select class="form-select form-select-sm" @bind="mapping.TargetField">
+                                            <option value="">Do not import</option>
+                                            @foreach (var field in TaxDepositsImportService.AllTargetFields)
+                                            {
+                                                <option value="@field">@field</option>
+                                            }
+                                        </select>
+                                    </td>
+                                    <td><input class="form-check-input" type="checkbox" @bind="mapping.IsRequired" /></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <button class="btn btn-primary" @onclick="ValidateDeposits" disabled="@isWorking">Validate Tax Deposits</button>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header bg-light">3. Preview Before Saving</div>
+            <div class="table-responsive">
+                <table class="table table-striped table-sm mb-0">
+                    <thead>
+                        <tr>
+                            @foreach (var column in parseResult.Columns)
+                            {
+                                <th>@column</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in parseResult.Rows.Take(15))
+                        {
+                            <tr>
+                                @foreach (var column in parseResult.Columns)
+                                {
+                                    <td>@GetCell(row, column)</td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="card-footer small text-muted">Preview shows up to 15 rows. Records are saved only after confirmation.</div>
+        </div>
+    }
+
+    @if (validationResult != null)
+    {
+        <div class="card mb-4">
+            <div class="card-header bg-light">4. Validation Results</div>
+            <div class="card-body">
+                <dl class="row">
+                    <dt class="col-sm-3">Batch</dt>
+                    <dd class="col-sm-9">#@validationResult.Batch.ImportBatchId</dd>
+                    <dt class="col-sm-3">Rows</dt>
+                    <dd class="col-sm-9">@validationResult.Batch.RowCount total, @validationResult.Batch.ValidRowCount valid, @validationResult.Batch.ErrorCount errors</dd>
+                    <dt class="col-sm-3">Status</dt>
+                    <dd class="col-sm-9">@validationResult.Batch.Status</dd>
+                </dl>
+
+                @if (validationResult.Batch.Errors.Any())
+                {
+                    <div class="alert alert-danger">Validation errors require review before saving tax deposit records.</div>
+                    <ul>
+                        @foreach (var error in validationResult.Batch.Errors.OrderBy(error => error.RowNumber).ThenBy(error => error.ErrorCode).Take(50))
+                        {
+                            <li>Row @(error.RowNumber?.ToString() ?? "batch"): @error.Message</li>
+                        }
+                    </ul>
+                }
+                else
+                {
+                    <div class="alert alert-success">Validation completed. Tax deposit records are ready to save locally.</div>
+                    <button class="btn btn-success" @onclick="ConfirmDeposits" disabled="@isWorking">Save User-Entered Deposit Records</button>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private ImportFileParseResult? parseResult;
+    private TaxDepositsImportValidationResult? validationResult;
+    private List<ImportMappingInput> mappingInputs = new();
+    private string selectedFileName = string.Empty;
+    private string statusMessage = string.Empty;
+    private string statusClass = "alert-info";
+    private bool reviewAcknowledged;
+    private bool isWorking;
+
+    private async Task OnFileSelected(InputFileChangeEventArgs args)
+    {
+        ResetStatus();
+        validationResult = null;
+        selectedFileName = args.File.Name;
+
+        try
+        {
+            isWorking = true;
+            await using var stream = args.File.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+            parseResult = await DepositImportService.ParseFileAsync(stream, args.File.Name);
+            mappingInputs = parseResult.Columns.Select(column =>
+            {
+                var target = GuessDepositField(column);
+                return new ImportMappingInput
+                {
+                    SourceColumn = column,
+                    TargetField = target,
+                    IsRequired = TaxDepositsImportService.RequiredTargetFields.Contains(target, StringComparer.OrdinalIgnoreCase)
+                };
+            }).ToList();
+            statusClass = "alert-success";
+            statusMessage = "Tax deposit file parsed locally. Review mappings and preview before validation.";
+        }
+        catch (Exception ex)
+        {
+            parseResult = null;
+            mappingInputs.Clear();
+            statusClass = "alert-danger";
+            statusMessage = $"Unable to parse tax deposit file: {ex.Message}";
+        }
+        finally
+        {
+            isWorking = false;
+        }
+    }
+
+    private async Task ValidateDeposits()
+    {
+        if (parseResult == null)
+        {
+            return;
+        }
+
+        ResetStatus();
+
+        try
+        {
+            isWorking = true;
+            validationResult = await DepositImportService.ValidateAsync(
+                selectedFileName,
+                parseResult,
+                mappingInputs,
+                reviewAcknowledged);
+            statusClass = validationResult.CanImport ? "alert-success" : "alert-warning";
+            statusMessage = validationResult.CanImport
+                ? "Tax deposits validated locally. Save records after review."
+                : "Tax deposit validation found blocking errors.";
+        }
+        catch (Exception ex)
+        {
+            statusClass = "alert-danger";
+            statusMessage = $"Unable to validate tax deposits: {ex.Message}";
+        }
+        finally
+        {
+            isWorking = false;
+        }
+    }
+
+    private async Task ConfirmDeposits()
+    {
+        if (validationResult == null)
+        {
+            return;
+        }
+
+        ResetStatus();
+
+        try
+        {
+            isWorking = true;
+            var result = await DepositImportService.ConfirmAsync(validationResult.Batch.ImportBatchId);
+            validationResult = new TaxDepositsImportValidationResult { Batch = result.Batch };
+            statusClass = "alert-success";
+            statusMessage = $"{result.ImportedDepositCount} user-entered deposit record(s) saved locally.";
+        }
+        catch (Exception ex)
+        {
+            statusClass = "alert-danger";
+            statusMessage = $"Unable to save tax deposit records: {ex.Message}";
+        }
+        finally
+        {
+            isWorking = false;
+        }
+    }
+
+    private static string GetCell(Dictionary<string, string> row, string column)
+    {
+        return row.TryGetValue(column, out var value) ? value : string.Empty;
+    }
+
+    private static string GuessDepositField(string column)
+    {
+        var normalized = column.Replace(" ", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace("_", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace("-", string.Empty, StringComparison.OrdinalIgnoreCase);
+
+        return TaxDepositsImportService.AllTargetFields.FirstOrDefault(field =>
+            string.Equals(field, normalized, StringComparison.OrdinalIgnoreCase))
+            ?? string.Empty;
+    }
+
+    private void ResetStatus()
+    {
+        statusMessage = string.Empty;
+        statusClass = "alert-info";
+    }
+}

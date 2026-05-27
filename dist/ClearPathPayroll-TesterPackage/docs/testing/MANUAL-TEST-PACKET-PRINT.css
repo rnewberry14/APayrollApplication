@@ -1,0 +1,49 @@
+@media print {
+  body {
+    color: #000;
+    background: #fff;
+    font-family: Arial, sans-serif;
+    font-size: 11pt;
+    line-height: 1.35;
+  }
+
+  h1 {
+    font-size: 20pt;
+    page-break-after: avoid;
+  }
+
+  h2 {
+    font-size: 15pt;
+    page-break-before: always;
+    page-break-after: avoid;
+    border-bottom: 1px solid #000;
+    padding-bottom: 4px;
+  }
+
+  h2:first-of-type {
+    page-break-before: auto;
+  }
+
+  ul,
+  table,
+  p {
+    page-break-inside: avoid;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  th,
+  td {
+    border: 1px solid #444;
+    padding: 6px;
+    vertical-align: top;
+  }
+
+  a {
+    color: #000;
+    text-decoration: none;
+  }
+}

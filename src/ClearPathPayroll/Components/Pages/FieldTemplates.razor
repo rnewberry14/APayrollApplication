@@ -1,0 +1,161 @@
+@page "/setup/field-templates"
+@using System.ComponentModel.DataAnnotations
+@using ClearPathPayroll.Domain
+@using ClearPathPayroll.Services
+@inject CompanyService CompanyService
+@inject UserDefinedFieldService UserDefinedFieldService
+@inject PayrollFieldTemplateCatalog TemplateCatalog
+
+<PageTitle>Optional Payroll Field Templates - ClearPath Payroll</PageTitle>
+
+<div class="container-fluid mt-4">
+    <NoAdviceDisclaimer />
+
+    <div class="alert alert-success" role="status">
+        <strong>Local Demo Mode:</strong> Optional payroll field templates are stored locally only after activation. This page does not run formulas, submit ACH, submit tax filings, or call production APIs.
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2>Optional Payroll Field Templates</h2>
+            <p class="text-muted">Common optional payroll field template catalog. Templates are not activated automatically.</p>
+        </div>
+        <div class="col-md-4 text-md-end">
+            <a class="btn btn-outline-primary" href="setup/user-defined-fields">Edit Activated Fields</a>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(statusMessage))
+    {
+        <div class="alert @statusClass alert-dismissible fade show" role="status">
+            @statusMessage
+            <button type="button" class="btn-close" @onclick="() => statusMessage = string.Empty"></button>
+        </div>
+    }
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <label class="form-label" for="company">Company</label>
+            <select id="company" class="form-select" value="@selectedCompanyId" @onchange="OnCompanyChanged">
+                <option value="0">Select a company</option>
+                @foreach (var company in companies)
+                {
+                    <option value="@company.CompanyId">@company.LegalName</option>
+                }
+            </select>
+        </div>
+    </div>
+
+    @if (selectedCompanyId == 0)
+    {
+        <div class="alert alert-info">Select a company to review optional templates.</div>
+    }
+    else
+    {
+        <div class="card mb-4">
+            <div class="card-header bg-light">Template Catalog</div>
+            <div class="table-responsive">
+                <table class="table table-striped mb-0">
+                    <thead>
+                        <tr>
+                            <th>Template</th>
+                            <th>Code</th>
+                            <th>Applies To</th>
+                            <th>Data Type</th>
+                            <th>Calculation Role</th>
+                            <th>Status</th>
+                            <th class="text-end">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var template in templates)
+                        {
+                            var active = activeCodes.Contains(template.FieldCode);
+                            <tr>
+                                <td>
+                                    <strong>@template.FieldName</strong>
+                                    <div class="small text-muted">@template.Description</div>
+                                </td>
+                                <td><code>@template.FieldCode</code></td>
+                                <td>@template.AppliesTo</td>
+                                <td>@template.DataType</td>
+                                <td>@template.CalculationRole</td>
+                                <td>@(active ? "Activated" : "Not activated")</td>
+                                <td class="text-end">
+                                    <button class="btn btn-sm btn-primary" @onclick="() => ActivateTemplate(template)" disabled="@active">
+                                        Activate
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<Company> companies = new();
+    private IReadOnlyList<PayrollFieldTemplate> templates = Array.Empty<PayrollFieldTemplate>();
+    private HashSet<string> activeCodes = new(StringComparer.OrdinalIgnoreCase);
+    private int selectedCompanyId;
+    private string statusMessage = string.Empty;
+    private string statusClass = "alert-info";
+
+    protected override async Task OnInitializedAsync()
+    {
+        templates = TemplateCatalog.GetTemplates();
+        companies = await CompanyService.GetAllActiveCompaniesAsync();
+        if (companies.Count == 1)
+        {
+            selectedCompanyId = companies[0].CompanyId;
+            await LoadActiveCodes();
+        }
+    }
+
+    private async Task OnCompanyChanged(ChangeEventArgs args)
+    {
+        selectedCompanyId = int.TryParse(args.Value?.ToString(), out var value) ? value : 0;
+        statusMessage = string.Empty;
+        await LoadActiveCodes();
+    }
+
+    private async Task LoadActiveCodes()
+    {
+        if (selectedCompanyId == 0)
+        {
+            activeCodes.Clear();
+            return;
+        }
+
+        var definitions = await UserDefinedFieldService.GetDefinitionsByCompanyAsync(selectedCompanyId);
+        activeCodes = definitions.Select(definition => definition.FieldCode).ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private async Task ActivateTemplate(PayrollFieldTemplate template)
+    {
+        if (selectedCompanyId == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            await UserDefinedFieldService.ActivateTemplateAsync(selectedCompanyId, template);
+            await LoadActiveCodes();
+            statusClass = "alert-success";
+            statusMessage = "Common optional payroll field template activated. Edit the name or code from User-Defined Fields.";
+        }
+        catch (ValidationException ex)
+        {
+            statusClass = "alert-danger";
+            statusMessage = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            statusClass = "alert-danger";
+            statusMessage = $"Unable to activate optional payroll field template: {ex.Message}";
+        }
+    }
+}

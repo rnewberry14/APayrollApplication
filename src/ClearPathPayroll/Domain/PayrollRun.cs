@@ -76,6 +76,9 @@ public class PayrollRun
     [Required]
     public PayrollStatus Status { get; set; } = PayrollStatus.Draft;
 
+    [StringLength(50)]
+    public string PayrollMode { get; set; } = "Regular payroll";
+
     /// <summary>
     /// Total gross pay.
     /// </summary>

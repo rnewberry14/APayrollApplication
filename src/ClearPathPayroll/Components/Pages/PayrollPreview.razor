@@ -1,9 +1,14 @@
 @page "/payroll/preview/{PayrollRunId:int}"
+@using ClearPathPayroll.Configuration
 @using ClearPathPayroll.Data
 @using ClearPathPayroll.Domain
 @using ClearPathPayroll.Services
+@using Microsoft.Extensions.Options
 @inject PayrollService PayrollService
 @inject PayrollCalculationService PayrollCalculationService
+@inject PayrollApprovalService PayrollApprovalService
+@inject DirectDepositSubmissionService DirectDepositSubmissionService
+@inject IOptions<LimitedLiabilityModeOptions> LimitedLiabilityOptions
 @inject NavigationManager NavigationManager
 
 <PageTitle>Payroll Preview - ClearPath Payroll</PageTitle>
@@ -19,6 +24,12 @@
     }
     else
     {
+        <NoAdviceDisclaimer />
+
+        <div class="alert alert-success" role="status">
+            <strong>Local Demo Mode:</strong> Data stays in the local database for this prototype workflow. No real ACH, tax filing, or bank data transmission is enabled.
+        </div>
+
         <!-- Header Section -->
         <div class="row mb-4">
             <div class="col-md-8">
@@ -26,6 +37,7 @@
                 <p class="text-muted">Review and approve payroll before submission</p>
             </div>
             <div class="col-md-4 text-end">
+                <a class="btn btn-sm btn-outline-secondary me-2" href="/help?article=payroll-preview">Help</a>
                 <span class="badge bg-info">@payrollRun.Status</span>
             </div>
         </div>
@@ -234,6 +246,62 @@
             </div>
         </div>
 
+        @if (payrollRun.Status == PayrollStatus.Approved || directDepositBatch != null)
+        {
+            <div class="card mb-4">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Fake/Sandbox Direct Deposit</h5>
+                </div>
+                <div class="card-body">
+                    <NoAdviceDisclaimer />
+
+                    <div class="alert alert-info" role="note">
+                        Fake/sandbox direct deposit only. No real bank data is transmitted and no production ACH is used.
+                    </div>
+
+                    @if (!IsFakeDirectDepositAllowed)
+                    {
+                        <div class="alert alert-danger" role="alert">
+                            Fake direct deposit is available only when Local-Only Mode is enabled and real ACH submission is disabled.
+                        </div>
+                    }
+
+                    @if (directDepositBatch != null)
+                    {
+                        <div class="row">
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label text-muted">Batch status</label>
+                                <p class="lead">@directDepositBatch.Status</p>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label text-muted">Fake batch reference</label>
+                                <p class="lead">@(directDepositBatch.ExternalBatchReference ?? "Not assigned")</p>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label text-muted">Batch total</label>
+                                <p class="lead">@directDepositBatch.TotalAmount.ToString("C")</p>
+                            </div>
+                            <div class="col-md-2 mb-3">
+                                <label class="form-label text-muted">Items</label>
+                                <p class="lead">@directDepositBatch.Items.Count</p>
+                            </div>
+                        </div>
+                    }
+
+                    @if (payrollRun.Status == PayrollStatus.Approved && directDepositBatch == null)
+                    {
+                        <button class="btn btn-warning" @onclick="ShowDirectDepositConfirmation" disabled="@(!CanSubmitFakeDirectDeposit)">
+                            @if (isProcessing)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            }
+                            Submit Direct Deposit
+                        </button>
+                    }
+                </div>
+            </div>
+        }
+
         <!-- Approval Confirmation Modal -->
         @if (showConfirmation)
         {
@@ -245,6 +313,8 @@
                             <button type="button" class="btn-close" @onclick="CancelApproval"></button>
                         </div>
                         <div class="modal-body">
+                            <NoAdviceDisclaimer />
+
                             <p>You are about to approve payroll for <strong>@(payrollRun.Company?.LegalName ?? "N/A")</strong>.</p>
                             <p>Pay Period: <strong>@payrollRun.PayPeriodStart.ToString("MM/dd/yyyy") - @payrollRun.PayPeriodEnd.ToString("MM/dd/yyyy")</strong></p>
                             <p>Total Net Pay: <strong class="text-success">@payrollRun.TotalNetPay.ToString("C")</strong></p>
@@ -254,6 +324,29 @@
                         <div class="modal-footer">
                             <button type="button" class="btn btn-outline-secondary" @onclick="CancelApproval">Cancel</button>
                             <button type="button" class="btn btn-success" @onclick="HandleApprove">Confirm Approval</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (showDirectDepositConfirmation)
+        {
+            <div class="modal fade show d-block" style="background-color: rgba(0, 0, 0, 0.5);">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Submit Fake/Sandbox Direct Deposit?</h5>
+                            <button type="button" class="btn-close" @onclick="CancelDirectDeposit"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>This creates a fake/sandbox direct deposit batch for payroll run <strong>#@payrollRun.PayrollRunId</strong>.</p>
+                            <p>Total Net Pay: <strong class="text-success">@payrollRun.TotalNetPay.ToString("C")</strong></p>
+                            <p class="fw-bold">No real ACH payment will be submitted. No routing numbers or full bank account numbers will be shown.</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" @onclick="CancelDirectDeposit">Cancel</button>
+                            <button type="button" class="btn btn-warning" @onclick="HandleSubmitDirectDeposit">Confirm Fake Submission</button>
                         </div>
                     </div>
                 </div>
@@ -285,14 +378,24 @@
     public int PayrollRunId { get; set; }
 
     private PayrollRun? payrollRun;
+    private DirectDepositBatch? directDepositBatch;
     private bool isLoading = true;
     private bool isProcessing = false;
     private bool showConfirmation = false;
+    private bool showDirectDepositConfirmation = false;
     private string successMessage = string.Empty;
     private string errorMessage = string.Empty;
     private List<string> validationErrors = new();
     private List<string> warnings = new();
     private decimal totalCashRequired = 0m;
+    private const string PlaceholderUserId = "local-prototype-user";
+
+    private bool CanApprovePayrollRun => validationErrors.Count == 0 && payrollRun?.Status == PayrollStatus.Calculated;
+    private bool IsFakeDirectDepositAllowed => LimitedLiabilityOptions.Value.Enabled && !LimitedLiabilityOptions.Value.AllowRealAchSubmission;
+    private bool CanSubmitFakeDirectDeposit => payrollRun?.Status == PayrollStatus.Approved
+        && directDepositBatch == null
+        && IsFakeDirectDepositAllowed
+        && !isProcessing;
 
     protected override async Task OnInitializedAsync()
     {
@@ -312,6 +415,7 @@
                 // Ensure navigation properties are loaded
                 // Calculate total cash required
                 totalCashRequired = payrollRun.TotalNetPay + payrollRun.TotalEmployerTaxes;
+                directDepositBatch = await DirectDepositSubmissionService.GetLatestBatchForPayrollRunAsync(PayrollRunId);
             }
         }
         catch (Exception ex)
@@ -420,14 +524,10 @@
                 return;
             }
 
-            // Recalculate the payroll run
-            // Note: The actual recalculation requires employee deductions and hours
-            // which would typically be collected from a form. For this preview,
-            // we'll trigger a refresh of the current data.
-            
+            var results = await PayrollCalculationService.RecalculatePayrollRunAsync(PayrollRunId, PlaceholderUserId);
             await LoadPayrollRun();
             ValidatePayrollRun();
-            successMessage = "Payroll recalculated successfully.";
+            successMessage = $"Payroll recalculated for {results.Count} employee(s). Review totals before approval.";
         }
         catch (Exception ex)
         {
@@ -452,6 +552,83 @@
         showConfirmation = false;
     }
 
+    private void ShowDirectDepositConfirmation()
+    {
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
+
+        if (!IsFakeDirectDepositAllowed)
+        {
+            errorMessage = "Fake direct deposit is available only when Local-Only Mode is enabled and real ACH submission is disabled.";
+            return;
+        }
+
+        if (payrollRun?.Status != PayrollStatus.Approved)
+        {
+            errorMessage = "Fake direct deposit can only be submitted after payroll is Approved.";
+            return;
+        }
+
+        if (directDepositBatch != null)
+        {
+            errorMessage = "This payroll run already has a direct deposit batch.";
+            return;
+        }
+
+        showDirectDepositConfirmation = true;
+    }
+
+    private void CancelDirectDeposit()
+    {
+        showDirectDepositConfirmation = false;
+    }
+
+    private async Task HandleSubmitDirectDeposit()
+    {
+        try
+        {
+            isProcessing = true;
+            errorMessage = string.Empty;
+            successMessage = string.Empty;
+            showDirectDepositConfirmation = false;
+
+            if (!IsFakeDirectDepositAllowed)
+            {
+                errorMessage = "Fake direct deposit is available only when Local-Only Mode is enabled and real ACH submission is disabled.";
+                return;
+            }
+
+            if (payrollRun?.Status != PayrollStatus.Approved)
+            {
+                errorMessage = "Fake direct deposit can only be submitted after payroll is Approved.";
+                return;
+            }
+
+            if (directDepositBatch != null)
+            {
+                errorMessage = "This payroll run already has a direct deposit batch.";
+                return;
+            }
+
+            directDepositBatch = await DirectDepositSubmissionService.SubmitFakePayrollRunDirectDepositAsync(PayrollRunId, PlaceholderUserId);
+            await LoadPayrollRun();
+            ValidatePayrollRun();
+            successMessage = $"Fake/sandbox direct deposit submitted. Batch status: {directDepositBatch.Status}. Fake reference: {directDepositBatch.ExternalBatchReference}.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            errorMessage = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error submitting fake direct deposit: {ex.Message}";
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
     private async Task HandleApprove()
     {
         try
@@ -461,22 +638,20 @@
             successMessage = string.Empty;
             showConfirmation = false;
 
-            // Update payroll run status to Approved
-            // Note: userId should be obtained from authentication context
-            // For now, passing null; in production, use actual user ID
-            var success = await PayrollService.UpdatePayrollStatusAsync(
-                PayrollRunId, 
-                PayrollStatus.Approved,
-                userId: null  // TODO: Get from AuthenticationState
-            );
+            ValidatePayrollRun();
+            if (!CanApprovePayrollRun)
+            {
+                errorMessage = "Payroll cannot be approved until validation errors are resolved and the run is Calculated.";
+                return;
+            }
+
+            var success = await PayrollApprovalService.ApprovePayrollRunAsync(PayrollRunId, PlaceholderUserId);
 
             if (success)
             {
-                successMessage = "Payroll approved successfully. You can now submit for processing.";
-                
-                // Optionally redirect after a delay
-                await Task.Delay(2000);
-                NavigationManager.NavigateTo("/payroll");
+                await LoadPayrollRun();
+                ValidatePayrollRun();
+                successMessage = "Payroll approved successfully. No direct deposit or tax filing was submitted.";
             }
             else
             {

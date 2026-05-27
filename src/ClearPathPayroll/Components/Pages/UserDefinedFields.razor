@@ -1,0 +1,283 @@
+@page "/setup/user-defined-fields"
+@using System.ComponentModel.DataAnnotations
+@using ClearPathPayroll.Domain
+@using ClearPathPayroll.Services
+@inject CompanyService CompanyService
+@inject UserDefinedFieldService UserDefinedFieldService
+
+<PageTitle>User-Defined Payroll Fields - ClearPath Payroll</PageTitle>
+
+<div class="container-fluid mt-4">
+    <NoAdviceDisclaimer />
+
+    <div class="alert alert-success" role="status">
+        <strong>Local Demo Mode:</strong> User-defined payroll fields are stored in the local database. This page does not run scripts, submit ACH, submit tax filings, or call production APIs.
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2>User-Defined Payroll Fields</h2>
+            <p class="text-muted">Optional custom field definitions for employer, employee, payroll run, payroll check, and check line records.</p>
+        </div>
+        <div class="col-md-4 text-md-end">
+            <button class="btn btn-primary" @onclick="StartNewField" disabled="@(selectedCompanyId == 0)">Add Field</button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(statusMessage))
+    {
+        <div class="alert @statusClass alert-dismissible fade show" role="status">
+            @statusMessage
+            <button type="button" class="btn-close" @onclick="() => statusMessage = string.Empty"></button>
+        </div>
+    }
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <label class="form-label" for="company">Company</label>
+            <select id="company" class="form-select" value="@selectedCompanyId" @onchange="OnCompanyChanged">
+                <option value="0">Select a company</option>
+                @foreach (var company in companies)
+                {
+                    <option value="@company.CompanyId">@company.LegalName</option>
+                }
+            </select>
+        </div>
+    </div>
+
+    @if (selectedCompanyId > 0)
+    {
+        <div class="row">
+            <div class="col-xl-5">
+                <div class="card mb-4">
+                    <div class="card-header bg-light">Fields</div>
+                    <div class="table-responsive">
+                        <table class="table table-striped mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Applies To</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                    <th class="text-end">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (definitions.Count == 0)
+                                {
+                                    <tr><td colspan="5" class="text-center text-muted">No optional custom fields found.</td></tr>
+                                }
+                                else
+                                {
+                                    @foreach (var definition in definitions)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <strong>@definition.FieldName</strong>
+                                                <div class="small text-muted"><code>@definition.FieldCode</code></div>
+                                            </td>
+                                            <td>@definition.AppliesTo</td>
+                                            <td>@definition.DataType</td>
+                                            <td>@(definition.IsActive ? "Active" : "Inactive")</td>
+                                            <td class="text-end">
+                                                <button class="btn btn-sm btn-outline-primary" @onclick="() => EditField(definition.UserDefinedFieldDefinitionId)">Edit</button>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-7">
+                @if (editingDefinition == null)
+                {
+                    <div class="alert alert-info">Select a field or click Add Field.</div>
+                }
+                else
+                {
+                    <EditForm Model="editingDefinition" OnValidSubmit="SaveField">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+                        <div class="card mb-4">
+                            <div class="card-header bg-light">Optional Custom Field</div>
+                            <div class="card-body">
+                                <div class="alert alert-warning" role="alert">
+                                    Formula support is a placeholder only. Executable scripts and unsafe formulas are not accepted.
+                                </div>
+
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Field name</label>
+                                        <InputText class="form-control" @bind-Value="editingDefinition.FieldName" />
+                                        <ValidationMessage For="() => editingDefinition.FieldName" />
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Field code</label>
+                                        <InputText class="form-control" @bind-Value="editingDefinition.FieldCode" />
+                                        <div class="form-text">Letters, numbers, underscores, and hyphens only.</div>
+                                        <ValidationMessage For="() => editingDefinition.FieldCode" />
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Applies to</label>
+                                        <InputSelect class="form-select" @bind-Value="editingDefinition.AppliesTo">
+                                            @foreach (var value in Enum.GetValues<UserDefinedFieldAppliesTo>())
+                                            {
+                                                <option value="@value">@value</option>
+                                            }
+                                        </InputSelect>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Data type</label>
+                                        <InputSelect class="form-select" @bind-Value="editingDefinition.DataType">
+                                            @foreach (var value in Enum.GetValues<UserDefinedFieldDataType>())
+                                            {
+                                                <option value="@value">@value</option>
+                                            }
+                                        </InputSelect>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Calculation role</label>
+                                        <InputSelect class="form-select" @bind-Value="editingDefinition.CalculationRole">
+                                            @foreach (var value in Enum.GetValues<UserDefinedFieldCalculationRole>())
+                                            {
+                                                <option value="@value">@value</option>
+                                            }
+                                        </InputSelect>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-check mt-4">
+                                            <InputCheckbox class="form-check-input" @bind-Value="editingDefinition.IsRequired" /> Required
+                                        </label>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-check mt-4">
+                                            <InputCheckbox class="form-check-input" @bind-Value="editingDefinition.IncludeInPayrollCalculation" /> Include in payroll calculation later
+                                        </label>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-check mt-4">
+                                            <InputCheckbox class="form-check-input" @bind-Value="editingDefinition.IsActive" /> Active
+                                        </label>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Default value</label>
+                                        <InputText class="form-control" @bind-Value="editingDefinition.DefaultValue" />
+                                        <ValidationMessage For="() => editingDefinition.DefaultValue" />
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">List options</label>
+                                        <InputTextArea class="form-control" rows="3" @bind-Value="editingDefinition.ListOptions" />
+                                        <div class="form-text">Use commas or one option per line.</div>
+                                        <ValidationMessage For="() => editingDefinition.ListOptions" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-footer d-flex gap-2">
+                                <button type="submit" class="btn btn-primary" disabled="@isSaving">Save</button>
+                                <button type="button" class="btn btn-outline-secondary" @onclick="CancelEdit" disabled="@isSaving">Cancel</button>
+                            </div>
+                        </div>
+                    </EditForm>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<Company> companies = new();
+    private List<UserDefinedFieldDefinition> definitions = new();
+    private int selectedCompanyId;
+    private UserDefinedFieldDefinition? editingDefinition;
+    private bool isSaving;
+    private string statusMessage = string.Empty;
+    private string statusClass = "alert-info";
+
+    protected override async Task OnInitializedAsync()
+    {
+        companies = await CompanyService.GetAllActiveCompaniesAsync();
+        if (companies.Count == 1)
+        {
+            selectedCompanyId = companies[0].CompanyId;
+            await LoadDefinitions();
+        }
+    }
+
+    private async Task OnCompanyChanged(ChangeEventArgs args)
+    {
+        selectedCompanyId = int.TryParse(args.Value?.ToString(), out var value) ? value : 0;
+        editingDefinition = null;
+        await LoadDefinitions();
+    }
+
+    private async Task LoadDefinitions()
+    {
+        definitions = selectedCompanyId == 0
+            ? new List<UserDefinedFieldDefinition>()
+            : await UserDefinedFieldService.GetDefinitionsByCompanyAsync(selectedCompanyId);
+    }
+
+    private void StartNewField()
+    {
+        editingDefinition = new UserDefinedFieldDefinition
+        {
+            CompanyId = selectedCompanyId,
+            AppliesTo = UserDefinedFieldAppliesTo.Employee,
+            DataType = UserDefinedFieldDataType.Text,
+            CalculationRole = UserDefinedFieldCalculationRole.InformationalOnly,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        };
+        statusMessage = string.Empty;
+    }
+
+    private async Task EditField(int definitionId)
+    {
+        editingDefinition = await UserDefinedFieldService.GetDefinitionByIdAsync(definitionId);
+        statusMessage = string.Empty;
+    }
+
+    private async Task SaveField()
+    {
+        if (editingDefinition == null)
+        {
+            return;
+        }
+
+        isSaving = true;
+        statusMessage = string.Empty;
+
+        try
+        {
+            await UserDefinedFieldService.SaveDefinitionAsync(editingDefinition);
+            await LoadDefinitions();
+            editingDefinition = null;
+            statusClass = "alert-success";
+            statusMessage = "Optional custom field saved locally.";
+        }
+        catch (ValidationException ex)
+        {
+            statusClass = "alert-danger";
+            statusMessage = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            statusClass = "alert-danger";
+            statusMessage = $"Unable to save optional custom field: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void CancelEdit()
+    {
+        editingDefinition = null;
+        statusMessage = string.Empty;
+    }
+}
