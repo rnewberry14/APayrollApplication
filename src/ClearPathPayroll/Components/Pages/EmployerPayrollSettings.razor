@@ -1,4 +1,5 @@
 @page "/setup/employer/payroll-settings"
+@page "/employers/payroll-settings"
 @using System.ComponentModel.DataAnnotations
 @using ClearPathPayroll.Domain
 @using ClearPathPayroll.Services
@@ -54,7 +55,7 @@
 
         <div class="row">
             <div class="col-xl-5">
-                <EditForm Model="selectedCompany" OnValidSubmit="SavePayrollSettings">
+                <EditForm Model="selectedCompany" OnSubmit="SavePayrollSettings">
                     <DataAnnotationsValidator />
                     <ValidationSummary />
 
@@ -63,42 +64,69 @@
                         <div class="card-body">
                             <div class="row g-3">
                                 <div class="col-md-6">
-                                    <label class="form-label">FUTA rate placeholder</label>
-                                    <InputNumber class="form-control" @bind-Value="selectedCompany.FutaRatePlaceholder" />
-                                    <div class="form-text">User-entered rate.</div>
+                                    <label class="form-label">FUTA Rate (%)</label>
+                                    <InputText class="form-control" @bind-Value="futaRateEntry" @onblur="FormatRateEntries" />
+                                    <div class="form-text">User-entered rate. Verify with official agency records.</div>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">SUTA state</label>
-                                    <InputText class="form-control" maxlength="2" @bind-Value="selectedCompany.SutaState" />
+                                    <InputSelect class="form-select" @bind-Value="selectedCompany.SutaState">
+                                        <option value="">Not Set</option>
+                                        @foreach (var state in USStateList.States)
+                                        {
+                                            <option value="@state.Abbreviation">@state.DisplayName</option>
+                                        }
+                                    </InputSelect>
                                 </div>
-                                <div class="col-md-7">
+                                <div class="col-md-6">
+                                    <label class="form-label">SUIN</label>
+                                    <InputText class="form-control" @bind-Value="selectedCompany.SUIN" />
+                                    <div class="form-text">State unemployment insurance number entered by user.</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">SEIN</label>
+                                    <InputText class="form-control" @bind-Value="selectedCompany.SEIN" />
+                                    <div class="form-text">State employer identification number entered by user.</div>
+                                </div>
+                                <div class="col-md-6">
                                     <label class="form-label">SUTA employer account number placeholder</label>
                                     <InputText class="form-control" @bind-Value="selectedCompany.SutaEmployerAccountNumberPlaceholder" />
-                                    <div class="form-text">Displayed as @CompanyService.MaskAccountPlaceholder(selectedCompany.SutaEmployerAccountNumberPlaceholder).</div>
+                                    <div class="form-text">Optional user-entered reference. Do not enter full bank account numbers.</div>
                                     <ValidationMessage For="() => selectedCompany.SutaEmployerAccountNumberPlaceholder" />
                                 </div>
-                                <div class="col-md-5">
-                                    <label class="form-label">SUTA rate</label>
-                                    <InputNumber class="form-control" @bind-Value="selectedCompany.SutaRate" />
-                                    <div class="form-text">User-entered rate.</div>
+                                <div class="col-md-6">
+                                    <label class="form-label">SUTA Rate (%)</label>
+                                    <InputText class="form-control" @bind-Value="sutaRateEntry" @onblur="FormatRateEntries" />
+                                    <div class="form-text">User-entered rate. Verify with official agency records.</div>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">State withholding account number placeholder</label>
                                     <InputText class="form-control" @bind-Value="selectedCompany.StateWithholdingAccountNumberPlaceholder" />
-                                    <div class="form-text">Displayed as @CompanyService.MaskAccountPlaceholder(selectedCompany.StateWithholdingAccountNumberPlaceholder).</div>
+                                    <div class="form-text">Optional user-entered reference. Do not enter full bank account numbers.</div>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Local tax account number placeholder</label>
                                     <InputText class="form-control" @bind-Value="selectedCompany.LocalTaxAccountNumberPlaceholder" />
-                                    <div class="form-text">Displayed as @CompanyService.MaskAccountPlaceholder(selectedCompany.LocalTaxAccountNumberPlaceholder).</div>
+                                    <div class="form-text">Optional user-entered reference. Do not enter full bank account numbers.</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Local Employer Tax Rate (%)</label>
+                                    <InputText class="form-control" @bind-Value="localEmployerTaxRateEntry" @onblur="FormatRateEntries" />
+                                    <div class="form-text">User-entered rate. Verify with official agency records.</div>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Deposit schedule placeholder</label>
                                     <InputText class="form-control" @bind-Value="selectedCompany.DepositSchedulePlaceholder" />
                                 </div>
                                 <div class="col-md-6">
-                                    <label class="form-label">Filing frequency placeholder</label>
-                                    <InputText class="form-control" @bind-Value="selectedCompany.FilingFrequencyPlaceholder" />
+                                    <label class="form-label">Filing Frequency / Depositor Type</label>
+                                    <InputSelect class="form-select" @bind-Value="selectedCompany.FilingFrequencyPlaceholder">
+                                        @foreach (var option in FilingFrequencyOptions.Values)
+                                        {
+                                            <option value="@option">@option</option>
+                                        }
+                                    </InputSelect>
+                                    <div class="form-text">Select the user-entered filing frequency or depositor type used for reporting and reminders.</div>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Effective date</label>
@@ -252,6 +280,9 @@
     private bool isSavingItem;
     private string statusMessage = string.Empty;
     private string statusClass = "alert-info";
+    private string futaRateEntry = string.Empty;
+    private string sutaRateEntry = string.Empty;
+    private string localEmployerTaxRateEntry = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -279,6 +310,8 @@
         payrollItems = selectedCompany == null
             ? new List<PayrollItem>()
             : await PayrollItemService.GetPayrollItemsByCompanyAsync(selectedCompany.CompanyId);
+
+        RefreshRateEntries();
     }
 
     private async Task SavePayrollSettings()
@@ -293,6 +326,11 @@
 
         try
         {
+            if (!TryApplyRateEntries())
+            {
+                return;
+            }
+
             await CompanyService.SaveEmployerSetupAsync(selectedCompany);
             statusClass = "alert-success";
             statusMessage = "Payroll settings saved locally. Verify with official agency records.";
@@ -374,5 +412,56 @@
     {
         editingPayrollItem = null;
         statusMessage = string.Empty;
+    }
+
+    private void RefreshRateEntries()
+    {
+        futaRateEntry = RateFormatter.FormatPercentRate(selectedCompany?.FutaRatePlaceholder);
+        sutaRateEntry = RateFormatter.FormatPercentRate(selectedCompany?.SutaRate);
+        localEmployerTaxRateEntry = RateFormatter.FormatPercentRate(selectedCompany?.LocalEmployerTaxRate);
+
+        if (selectedCompany != null && string.IsNullOrWhiteSpace(selectedCompany.FilingFrequencyPlaceholder))
+        {
+            selectedCompany.FilingFrequencyPlaceholder = FilingFrequencyOptions.Values[0];
+        }
+    }
+
+    private bool TryApplyRateEntries()
+    {
+        if (!TryApplyRate(futaRateEntry, "FUTA Rate", value => selectedCompany!.FutaRatePlaceholder = value) ||
+            !TryApplyRate(sutaRateEntry, "SUTA Rate", value => selectedCompany!.SutaRate = value) ||
+            !TryApplyRate(localEmployerTaxRateEntry, "Local Employer Tax Rate", value => selectedCompany!.LocalEmployerTaxRate = value))
+        {
+            statusClass = "alert-danger";
+            return false;
+        }
+
+        return true;
+    }
+
+    private void FormatRateEntries()
+    {
+        futaRateEntry = FormatRateEntry(futaRateEntry);
+        sutaRateEntry = FormatRateEntry(sutaRateEntry);
+        localEmployerTaxRateEntry = FormatRateEntry(localEmployerTaxRateEntry);
+    }
+
+    private static string FormatRateEntry(string entry)
+    {
+        return RateFormatter.TryParsePercentRate(entry, out var rate, out _)
+            ? RateFormatter.FormatPercentRate(rate)
+            : entry;
+    }
+
+    private bool TryApplyRate(string entry, string label, Action<decimal?> assign)
+    {
+        if (!RateFormatter.TryParsePercentRate(entry, out var rate, out var error))
+        {
+            statusMessage = $"{label}: {error}";
+            return false;
+        }
+
+        assign(rate);
+        return true;
     }
 }

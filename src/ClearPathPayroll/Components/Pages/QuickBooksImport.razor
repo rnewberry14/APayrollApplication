@@ -1,5 +1,7 @@
 @page "/import/quickbooks-desktop"
 @page "/import/quickbooks-online"
+@page "/imports/quickbooks/desktop"
+@page "/imports/quickbooks/online"
 @using ClearPathPayroll.Domain
 @using ClearPathPayroll.Services
 @inject ImportService ImportService
@@ -42,6 +44,8 @@
     {
         <div class="alert @statusClass" role="status">@statusMessage</div>
     }
+
+    <ImportProgress Progress="progress" />
 
     <div class="card mb-4">
         <div class="card-header bg-light">1. Select Template And Local File</div>
@@ -98,47 +102,13 @@
 
     @if (parseResult != null)
     {
-        <div class="card mb-4">
-            <div class="card-header bg-light">2. Map Columns</div>
-            <div class="card-body">
-                @foreach (var warning in parseResult.Warnings)
-                {
-                    <div class="alert alert-warning">@warning</div>
-                }
-
-                <div class="table-responsive">
-                    <table class="table table-sm align-middle">
-                        <thead>
-                            <tr>
-                                <th>Source column</th>
-                                <th>Target field</th>
-                                <th>Required</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var mapping in mappingInputs)
-                            {
-                                <tr>
-                                    <td>@mapping.SourceColumn</td>
-                                    <td>
-                                        <select class="form-select form-select-sm" @bind="mapping.TargetField">
-                                            <option value="">Do not import</option>
-                                            @foreach (var field in SelectedTemplate.Fields)
-                                            {
-                                                <option value="@field.TargetField">@field.TargetField</option>
-                                            }
-                                        </select>
-                                    </td>
-                                    <td><input class="form-check-input" type="checkbox" @bind="mapping.IsRequired" /></td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-
-                <button class="btn btn-primary" @onclick="ValidateImport" disabled="@isWorking">Validate Mappings</button>
-            </div>
-        </div>
+        <ImportMappingPanel Title="2. Map Columns"
+                            Mappings="mappingInputs"
+                            TargetFields="SelectedTemplate.Fields.Select(field => field.TargetField).ToArray()"
+                            RequiredTargetFields="SelectedTemplate.Fields.Where(field => field.IsRequired).Select(field => field.TargetField).ToArray()"
+                            IsWorking="isWorking"
+                            ValidateButtonText="Validate Mappings"
+                            OnValidate="ValidateImport" />
 
         <div class="card mb-4">
             <div class="card-header bg-light">3. Preview</div>
@@ -189,14 +159,14 @@
                     <ul>
                         @foreach (var error in validatedBatch.Errors.Take(30))
                         {
-                            <li>Row @(error.RowNumber?.ToString() ?? "batch"): @error.Message</li>
+                            <li>Row @(error.RowNumber?.ToString() ?? "batch"): @ImportFieldAliasMatcher.SanitizeErrorMessage(error.Message)</li>
                         }
                     </ul>
                 }
                 else
                 {
                     <div class="alert alert-success">Validation completed. Confirm to save the staged local import batch.</div>
-                    <button class="btn btn-success" @onclick="ConfirmImport" disabled="@isWorking">Confirm Local Import Batch</button>
+                    <button class="btn btn-success" @onclick="ConfirmImport" disabled="@(isWorking || progress.IsWorking)">Confirm Local Import Batch</button>
                 }
             </div>
         </div>
@@ -205,6 +175,7 @@
 
 @code {
     private QuickBooksImportSource Source => NavigationManager.Uri.Contains("/import/quickbooks-online", StringComparison.OrdinalIgnoreCase)
+        || NavigationManager.Uri.Contains("/imports/quickbooks/online", StringComparison.OrdinalIgnoreCase)
         ? QuickBooksImportSource.Online
         : QuickBooksImportSource.Desktop;
 
@@ -221,6 +192,7 @@
     private string statusClass = "alert-info";
     private bool reviewAcknowledged;
     private bool isWorking;
+    private ImportProgressModel progress = new();
 
     private string PageTitleText => Source == QuickBooksImportSource.Desktop
         ? "QuickBooks Desktop File Import"
@@ -275,9 +247,13 @@
         try
         {
             isWorking = true;
+            progress.MoveTo(ImportProgressStage.ReadingFile, "Reading the selected QuickBooks export.");
             await using var stream = args.File.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+            progress.MoveTo(ImportProgressStage.ParsingRows, "Parsing exported rows locally.");
             parseResult = await ImportService.ParseFileAsync(stream, args.File.Name);
+            progress.MoveTo(ImportProgressStage.DetectingColumns, "Detecting QuickBooks export columns.", parseResult.Rows.Count, parseResult.Warnings.Count, 0);
             mappingInputs = TemplateCatalog.BuildMappings(SelectedTemplate, parseResult.Columns);
+            progress.MoveTo(ImportProgressStage.MappingColumns, "Review suggested QuickBooks mappings.", parseResult.Rows.Count, parseResult.Warnings.Count, 0);
             statusClass = "alert-success";
             statusMessage = "QuickBooks exported file parsed locally. Review mappings and preview before validation.";
         }
@@ -286,7 +262,8 @@
             parseResult = null;
             mappingInputs.Clear();
             statusClass = "alert-danger";
-            statusMessage = $"Unable to parse QuickBooks exported file: {ex.Message}";
+            statusMessage = $"Unable to parse QuickBooks exported file: {ImportFieldAliasMatcher.SanitizeErrorMessage(ex.Message)}";
+            progress.MoveTo(ImportProgressStage.Failed, "The QuickBooks export could not be parsed locally.", errorCount: 1);
         }
         finally
         {
@@ -306,11 +283,13 @@
         try
         {
             isWorking = true;
+            progress.MoveTo(ImportProgressStage.ValidatingRows, "Validating QuickBooks export rows locally.", parseResult.Rows.Count);
             var templateValidation = TemplateCatalog.ValidateMappings(SelectedTemplate, mappingInputs);
             if (!templateValidation.IsValid)
             {
                 statusClass = "alert-danger";
                 statusMessage = $"Missing required mapped fields: {string.Join(", ", templateValidation.MissingRequiredFields)}";
+                progress.MoveTo(ImportProgressStage.Failed, "Required mapping review is needed.", parseResult.Rows.Count, 0, templateValidation.MissingRequiredFields.Count);
                 return;
             }
 
@@ -324,11 +303,17 @@
             statusMessage = validatedBatch.ErrorCount == 0
                 ? "QuickBooks export validated locally. Confirm the staged import batch after review."
                 : "Validation completed with blocking errors.";
+            progress.MoveTo(validatedBatch.ErrorCount == 0 ? ImportProgressStage.PreviewReady : ImportProgressStage.Failed,
+                validatedBatch.ErrorCount == 0 ? "Preview is ready for final review." : "Validation found QuickBooks import errors.",
+                validatedBatch.RowCount,
+                0,
+                validatedBatch.ErrorCount);
         }
         catch (Exception ex)
         {
             statusClass = "alert-danger";
-            statusMessage = $"Unable to validate QuickBooks export: {ex.Message}";
+            statusMessage = $"Unable to validate QuickBooks export: {ImportFieldAliasMatcher.SanitizeErrorMessage(ex.Message)}";
+            progress.MoveTo(ImportProgressStage.Failed, "QuickBooks validation failed with a safe summary message.", errorCount: 1);
         }
         finally
         {
@@ -348,14 +333,17 @@
         try
         {
             isWorking = true;
+            progress.MoveTo(ImportProgressStage.SavingImport, "Saving QuickBooks import batch locally.", validatedBatch.RowCount, 0, validatedBatch.ErrorCount);
             validatedBatch = await ImportService.ConfirmImportAsync(validatedBatch.ImportBatchId);
             statusClass = "alert-success";
             statusMessage = $"QuickBooks local import batch #{validatedBatch.ImportBatchId} confirmed.";
+            progress.MoveTo(ImportProgressStage.Complete, "QuickBooks import saved locally.", validatedBatch.RowCount, 0, 0);
         }
         catch (Exception ex)
         {
             statusClass = "alert-danger";
-            statusMessage = $"Unable to confirm QuickBooks import batch: {ex.Message}";
+            statusMessage = $"Unable to confirm QuickBooks import batch: {ImportFieldAliasMatcher.SanitizeErrorMessage(ex.Message)}";
+            progress.MoveTo(ImportProgressStage.Failed, "Saving QuickBooks import failed.", errorCount: 1);
         }
         finally
         {

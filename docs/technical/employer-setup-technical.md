@@ -6,34 +6,36 @@ ClearPath Payroll provides local software tools for payroll data entry and stora
 
 - `/setup/employer`
 - `/setup/employer/payroll-settings`
+- `/employers/select`
+- `/employers/new`
+- `/employers/edit`
+- `/employers/payroll-settings`
 
 ## Domain Model
 
-`Company` stores employer contact, address, locality placeholder, and employer tax setup placeholder fields. Account placeholder validation rejects plain numeric values that resemble account numbers.
+`Company` stores employer contact, address, FEIN, SUIN, SEIN, SUTA state, employer rate fields, Filing Frequency / Depositor Type, and employer tax notes.
 
-`PayrollItem` stores company-specific payroll item configuration:
+Rate fields are stored as decimal percent values with 4 decimal places:
 
-- Item code and name.
-- Item type.
-- Calculation type.
-- Default amount or user-entered rate.
-- Taxability flags.
-- Effective and end dates.
-- Notes and timestamps.
+- `FutaRatePlaceholder`
+- `SutaRate`
+- `LocalEmployerTaxRate`
 
-## Services
+## Helpers
 
-- `CompanyService` loads and saves employer setup data, masks FEIN values, and masks account placeholders for display.
-- `PayrollItemService` loads and saves payroll items with data annotation validation.
+- `PhoneNumberFormatter` accepts common phone punctuation and formats 10 digits as `(123) 456-7890`.
+- `RateFormatter` parses percent rate text and formats rates as `12.3456`.
+- `USStateList` provides U.S. states plus DC.
+- `FilingFrequencyOptions` provides the approved Filing Frequency / Depositor Type options.
 
 ## Persistence
 
-EF Core maps employer setup fields to `Companies` and payroll items to `PayrollItems`. The migration `20260526130500_AddEmployerSetupAndPayrollItems` adds the employer setup columns and payroll item table.
+EF Core maps employer setup fields to `Companies`. The migration `20260528100000_AddEmployerFieldFormatting` adds `SUIN`, `SEIN`, and `LocalEmployerTaxRate`.
 
 ## External Calls
 
 No tax API, ACH API, telemetry, cloud storage, or hosted database dependency is added by this feature.
 
-## Security Cautions
+## Safety Cautions
 
-FEIN values are masked in list displays. Placeholder account fields are masked where displayed. Full bank account numbers and routing numbers are not expected in these fields.
+User-entered rate. Verify with official agency records. Full bank account numbers and routing numbers are not expected in placeholder fields.

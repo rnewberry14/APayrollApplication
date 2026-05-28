@@ -45,6 +45,56 @@ public class EmployerPayrollSettingsTests
     }
 
     [Fact]
+    public void PhoneNumberFormatter_FormatsTenDigitsAndAllowsBlank()
+    {
+        Assert.True(PhoneNumberFormatter.TryFormat("405.555 1212", out var formatted, out var error));
+        Assert.Equal("(405) 555-1212", formatted);
+        Assert.Null(error);
+
+        Assert.True(PhoneNumberFormatter.TryFormat("", out var blank, out error));
+        Assert.Null(blank);
+        Assert.Null(error);
+    }
+
+    [Fact]
+    public void PhoneNumberFormatter_RejectsNonTenDigitInput()
+    {
+        var result = PhoneNumberFormatter.TryFormat("405-555", out _, out var error);
+
+        Assert.False(result);
+        Assert.Equal("Phone number must contain 10 digits.", error);
+    }
+
+    [Theory]
+    [InlineData("2.5", "2.5000")]
+    [InlineData("12.34567%", "12.3457")]
+    public void RateFormatter_FormatsPercentRatesToFourDecimals(string input, string expected)
+    {
+        var result = RateFormatter.TryParsePercentRate(input, out var rate, out var error);
+
+        Assert.True(result);
+        Assert.Null(error);
+        Assert.Equal(expected, RateFormatter.FormatPercentRate(rate));
+    }
+
+    [Fact]
+    public void USStateList_IncludesOklahomaAndDistrictOfColumbia()
+    {
+        Assert.Contains(USStateList.States, state => state.Abbreviation == "OK" && state.DisplayName == "Oklahoma (OK)");
+        Assert.Contains(USStateList.States, state => state.Abbreviation == "DC" && state.DisplayName == "District of Columbia (DC)");
+        Assert.Equal(51, USStateList.States.Count);
+    }
+
+    [Fact]
+    public void FilingFrequencyOptions_ContainRequiredDepositorTypes()
+    {
+        foreach (var expected in new[] { "Not Set", "Monthly", "Semiweekly", "Quarterly", "Annual", "Next-Day", "Other / User Defined" })
+        {
+            Assert.Contains(expected, FilingFrequencyOptions.Values);
+        }
+    }
+
+    [Fact]
     public void PayrollItemValidation_RejectsEndDateBeforeEffectiveDate()
     {
         var item = CreatePayrollItem();
@@ -81,6 +131,12 @@ public class EmployerPayrollSettingsTests
         var company = CreateCompany();
         company.SutaState = "OK";
         company.SutaRate = 2.5m;
+        company.FutaRatePlaceholder = 0.6m;
+        company.LocalEmployerTaxRate = 1.23456m;
+        company.SUIN = "  SUIN-OK-123  ";
+        company.SEIN = "  SEIN-OK-456  ";
+        company.Phone = "405 555 1212";
+        company.FilingFrequencyPlaceholder = "Monthly";
         company.SutaEmployerAccountNumberPlaceholder = "suta-token-placeholder-0001";
 
         await service.SaveEmployerSetupAsync(company);
@@ -88,7 +144,28 @@ public class EmployerPayrollSettingsTests
         var saved = await context.Companies.SingleAsync();
         Assert.Equal("OK", saved.SutaState);
         Assert.Equal(2.5m, saved.SutaRate);
+        Assert.Equal(0.6m, saved.FutaRatePlaceholder);
+        Assert.Equal(1.2346m, saved.LocalEmployerTaxRate);
+        Assert.Equal("SUIN-OK-123", saved.SUIN);
+        Assert.Equal("SEIN-OK-456", saved.SEIN);
+        Assert.Equal("(405) 555-1212", saved.Phone);
+        Assert.Equal("Monthly", saved.FilingFrequencyPlaceholder);
         Assert.Equal("suta-token-placeholder-0001", saved.SutaEmployerAccountNumberPlaceholder);
+    }
+
+    [Fact]
+    public async Task CompanyService_SaveEmployerSetupAsync_DoesNotReplaceFeinWithDemoPlaceholder()
+    {
+        await using var context = CreateContext("employer_fein_save");
+        var service = new CompanyService(context);
+        var company = CreateCompany();
+        company.FEIN = "12 3456789";
+
+        await service.SaveEmployerSetupAsync(company);
+
+        var saved = await context.Companies.SingleAsync();
+        Assert.Equal("12-3456789", saved.FEIN);
+        Assert.NotEqual("00-0000000", saved.FEIN);
     }
 
     private static Company CreateCompany()

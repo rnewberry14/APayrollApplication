@@ -6,30 +6,23 @@ ClearPath Payroll stores employer setup and payroll settings locally. The softwa
 
 - Employer profile setup at `/setup/employer`.
 - Employer payroll settings at `/setup/employer/payroll-settings`.
+- Alias routes under `/employers`.
 - Payroll item maintenance for earning, deduction, tax, reimbursement, and memo-only records.
-- Local database storage only.
 
-## Required Permissions
+## Administration Notes
 
-Administrative access to the local ClearPath Payroll instance and the local database.
-
-## Setup Steps
-
-1. Create or edit an employer on **Setup > Employer**.
-2. Enter FEIN and confirm the saved display is masked.
-3. Open **Setup > Payroll Settings**.
-4. Select the employer.
-5. Enter user-entered rate values and placeholder account references.
-6. Add payroll items that match the employer's internal payroll setup.
+- FEIN is stored from user entry after trim/basic formatting cleanup.
+- SUIN means state unemployment insurance number entered by user.
+- SEIN means state employer identification number entered by user.
+- Phone numbers are stored as `(123) 456-7890` when 10 digits are present.
+- Rate fields are percent values stored to 4 decimal places.
+- SUTA state is stored as a two-letter abbreviation.
+- Filing Frequency / Depositor Type is a user-selected value for reporting and reminder organization.
 
 ## Operational Cautions
 
-- Verify with official agency records.
-- Placeholder fields are not tax API lookup results.
-- This screen does not determine rates or file returns.
-- This screen does not submit ACH.
+- User-entered rate. Verify with official agency records.
+- The screen does not determine rates.
+- The screen does not submit ACH.
+- The screen does not submit tax filings.
 - Full bank account numbers and routing numbers are outside the intended field usage.
-
-## Security Notes
-
-FEIN and account reference displays are masked. Limit local database access to authorized users.

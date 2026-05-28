@@ -4,21 +4,22 @@ ClearPath Payroll does not provide legal, tax, financial, accounting, or payroll
 
 ## Common Errors
 
-- **Employer will not save**: Confirm required fields have values and the email format is valid.
-- **FEIN display looks masked**: Expected behavior after save.
-- **Account placeholder rejected**: Enter a token or masked reference instead of a plain account number.
-- **Payroll item will not save**: Confirm item code and item name are present.
-- **End date error**: Confirm the end date is not earlier than the effective date.
-- **Duplicate item code**: Use a unique item code for the selected company.
+- **FEIN changed format**: The app may trim spaces and format 9 digits as `12-3456789`. It does not replace the value with `00-0000000`.
+- **Phone number error**: Enter 10 digits. Spaces, dashes, dots, and parentheses are accepted.
+- **Rate error**: Enter a number from 0 through 100. The app stores 4 decimal places.
+- **SUTA state missing**: Select a state from the dropdown.
+- **Filing Frequency / Depositor Type missing**: Select an option or use `Other / User Defined`.
+- **Account placeholder rejected**: Enter a token or masked reference instead of a plain bank account number.
 
 ## Troubleshooting Steps
 
-1. Confirm Local Demo Mode or the private deployment database is available.
-2. Confirm the selected company exists and is active for payroll settings.
-3. Review validation messages at the top of the form.
-4. Replace plain account numbers with placeholder or token references.
-5. Retry the save action.
+1. Confirm the selected employer exists.
+2. Review validation messages at the top of the form.
+3. Re-enter phone numbers with 10 digits.
+4. Re-enter rates as percent values.
+5. Confirm SUTA state and Filing Frequency / Depositor Type dropdown values.
+6. Retry the save action.
 
-## Payroll, Tax, ACH, And Security Cautions
+## Safety Cautions
 
-Verify with official agency records. The setup pages do not submit ACH, submit tax filings, call production providers, or certify rate correctness. Avoid entering full bank account numbers or routing numbers.
+User-entered rate. Verify with official agency records. The setup pages do not submit ACH, submit tax filings, call production providers, or certify rate correctness.

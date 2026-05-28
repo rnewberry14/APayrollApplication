@@ -2,7 +2,7 @@
 
 ## What this page does
 
-Employer Setup stores demo employer details such as name, address, payroll contact, masked FEIN, and active status.
+Employer Setup stores demo employer details such as name, address, payroll contact, user-entered FEIN, and active status.
 
 ## When to use it
 
@@ -19,14 +19,14 @@ Create demo data or prepare fake employer information.
 3. Enter legal name, DBA name, contact, phone, email, and address.
 4. Enter fake FEIN-style test data only.
 5. Save the employer.
-6. Confirm the FEIN is masked after save.
+6. Confirm the FEIN remains the user-entered value after save.
 7. Open `/setup/employer/payroll-settings` for tax settings and payroll items.
 
 ## What to check
 
 - Required fields show validation messages.
 - Saved employer appears in the list.
-- FEIN is masked.
+- FEIN is not replaced with demo placeholder text.
 - The page uses neutral wording.
 
 ## Common messages or errors

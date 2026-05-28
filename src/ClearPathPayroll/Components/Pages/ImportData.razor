@@ -1,4 +1,5 @@
 @page "/setup/imports"
+@page "/imports/employer-employee"
 @using ClearPathPayroll.Domain
 @using ClearPathPayroll.Services
 @inject ImportService ImportService
@@ -30,6 +31,8 @@
     {
         <div class="alert @statusClass" role="status">@statusMessage</div>
     }
+
+    <ImportProgress Progress="progress" />
 
     <div class="card mb-4">
         <div class="card-header bg-light">1. Select Local File</div>
@@ -66,57 +69,13 @@
 
     @if (parseResult != null)
     {
-        <div class="card mb-4">
-            <div class="card-header bg-light">2. Map Columns</div>
-            <div class="card-body">
-                <div class="alert alert-info">
-                    Detected @parseResult.Columns.Count columns and @parseResult.Rows.Count data rows. Save happens only after validation and confirmation.
-                </div>
-
-                @foreach (var warning in parseResult.Warnings)
-                {
-                    <div class="alert alert-warning">@warning</div>
-                }
-
-                <div class="table-responsive">
-                    <table class="table table-sm align-middle">
-                        <thead>
-                            <tr>
-                                <th>Source column</th>
-                                <th>Target field</th>
-                                <th>Required</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var mapping in mappingInputs)
-                            {
-                                <tr>
-                                    <td>@mapping.SourceColumn</td>
-                                    <td>
-                                        <input class="form-control form-control-sm" list="targetFields" @bind="mapping.TargetField" />
-                                    </td>
-                                    <td>
-                                        <input class="form-check-input" type="checkbox" @bind="mapping.IsRequired" />
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-
-                <datalist id="targetFields">
-                    @foreach (var targetField in targetFields)
-                    {
-                        <option value="@targetField"></option>
-                    }
-                </datalist>
-
-                <div class="d-flex gap-2">
-                    <button class="btn btn-primary" @onclick="ValidateImport" disabled="@isWorking">Validate Rows</button>
-                    <button class="btn btn-outline-secondary" @onclick="ResetImport" disabled="@isWorking">Reset</button>
-                </div>
-            </div>
-        </div>
+        <ImportMappingPanel Title="2. Map Columns"
+                            Mappings="mappingInputs"
+                            TargetFields="targetFields"
+                            RequiredTargetFields="RequiredTargetFields"
+                            IsWorking="isWorking"
+                            ValidateButtonText="Validate Rows"
+                            OnValidate="ValidateImport" />
 
         <div class="card mb-4">
             <div class="card-header bg-light">3. Preview</div>
@@ -169,14 +128,14 @@
                     <ul>
                         @foreach (var error in validatedBatch.Errors.Take(20))
                         {
-                            <li>Row @(error.RowNumber?.ToString() ?? "batch"): @error.Message</li>
+                            <li>Row @(error.RowNumber?.ToString() ?? "batch"): @ImportFieldAliasMatcher.SanitizeErrorMessage(error.Message)</li>
                         }
                     </ul>
                 }
                 else
                 {
                     <div class="alert alert-success">Validation completed. The import is ready for local confirmation.</div>
-                    <button class="btn btn-success" @onclick="ConfirmImport" disabled="@isWorking">Confirm Import</button>
+                    <button class="btn btn-success" @onclick="ConfirmImport" disabled="@(isWorking || progress.IsWorking)">Confirm Import</button>
                 }
             </div>
         </div>
@@ -202,6 +161,13 @@
         "TaxDeposit.PaymentDate"
     };
 
+    private static readonly string[] RequiredTargetFields =
+    {
+        "Employee.FirstName",
+        "Employee.LastName",
+        "Employee.PayType"
+    };
+
     private ImportType selectedImportType = ImportType.EmployeesOnly;
     private ImportFileParseResult? parseResult;
     private ImportBatch? validatedBatch;
@@ -211,6 +177,7 @@
     private string statusClass = "alert-info";
     private bool demoWarningAcknowledged;
     private bool isWorking;
+    private ImportProgressModel progress = new();
 
     private async Task OnFileSelected(InputFileChangeEventArgs args)
     {
@@ -222,16 +189,20 @@
         try
         {
             isWorking = true;
+            progress.MoveTo(ImportProgressStage.ReadingFile, "Reading the selected local file.");
             await using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+            progress.MoveTo(ImportProgressStage.ParsingRows, "Parsing rows locally.");
             parseResult = await ImportService.ParseFileAsync(stream, file.Name);
+            progress.MoveTo(ImportProgressStage.DetectingColumns, "Detecting source columns.", parseResult.Rows.Count, parseResult.Warnings.Count, 0);
             mappingInputs = parseResult.Columns
                 .Select(column => new ImportMappingInput
                 {
                     SourceColumn = column,
-                    TargetField = GuessTargetField(column),
-                    IsRequired = false
+                    TargetField = ImportFieldAliasMatcher.SuggestTargetField(column, targetFields),
+                    IsRequired = RequiredTargetFields.Contains(ImportFieldAliasMatcher.SuggestTargetField(column, targetFields), StringComparer.OrdinalIgnoreCase)
                 })
                 .ToList();
+            progress.MoveTo(ImportProgressStage.MappingColumns, "Review suggested mappings before validation.", parseResult.Rows.Count, parseResult.Warnings.Count, 0);
             statusClass = "alert-success";
             statusMessage = "File parsed locally. Review the preview and mappings before validation.";
         }
@@ -240,7 +211,8 @@
             parseResult = null;
             mappingInputs.Clear();
             statusClass = "alert-danger";
-            statusMessage = $"Unable to parse the local file: {ex.Message}";
+            statusMessage = $"Unable to parse the local file: {ImportFieldAliasMatcher.SanitizeErrorMessage(ex.Message)}";
+            progress.MoveTo(ImportProgressStage.Failed, "The file could not be parsed locally.", errorCount: 1);
         }
         finally
         {
@@ -260,6 +232,7 @@
         try
         {
             isWorking = true;
+            progress.MoveTo(ImportProgressStage.ValidatingRows, "Validating rows locally.", parseResult.Rows.Count);
             validatedBatch = await ImportService.CreateStagedBatchAsync(
                 selectedFileName,
                 selectedImportType,
@@ -270,11 +243,18 @@
             statusMessage = validatedBatch.ErrorCount == 0
                 ? "Rows validated locally. Confirm the import when the preview is acceptable."
                 : "Validation completed with blocking errors.";
+            progress.MoveTo(
+                validatedBatch.ErrorCount == 0 ? ImportProgressStage.PreviewReady : ImportProgressStage.Failed,
+                validatedBatch.ErrorCount == 0 ? "Preview is ready for final review." : "Validation found errors that require review.",
+                validatedBatch.RowCount,
+                0,
+                validatedBatch.ErrorCount);
         }
         catch (Exception ex)
         {
             statusClass = "alert-danger";
-            statusMessage = $"Unable to validate import: {ex.Message}";
+            statusMessage = $"Unable to validate import: {ImportFieldAliasMatcher.SanitizeErrorMessage(ex.Message)}";
+            progress.MoveTo(ImportProgressStage.Failed, "Validation failed with a safe summary message.", errorCount: 1);
         }
         finally
         {
@@ -294,14 +274,17 @@
         try
         {
             isWorking = true;
+            progress.MoveTo(ImportProgressStage.SavingImport, "Saving the confirmed local import.", validatedBatch.RowCount, validatedBatch.Errors.Count(error => error.ErrorCode.Contains("Warning", StringComparison.OrdinalIgnoreCase)), validatedBatch.ErrorCount);
             validatedBatch = await ImportService.ConfirmImportAsync(validatedBatch.ImportBatchId);
             statusClass = "alert-success";
             statusMessage = $"Import batch #{validatedBatch.ImportBatchId} confirmed and saved in the local database.";
+            progress.MoveTo(ImportProgressStage.Complete, "Import saved locally.", validatedBatch.RowCount, 0, 0);
         }
         catch (Exception ex)
         {
             statusClass = "alert-danger";
-            statusMessage = $"Unable to confirm import: {ex.Message}";
+            statusMessage = $"Unable to confirm import: {ImportFieldAliasMatcher.SanitizeErrorMessage(ex.Message)}";
+            progress.MoveTo(ImportProgressStage.Failed, "Saving import failed.", errorCount: 1);
         }
         finally
         {
@@ -315,6 +298,7 @@
         validatedBatch = null;
         mappingInputs.Clear();
         selectedFileName = string.Empty;
+        progress = new ImportProgressModel();
         ResetMessages();
     }
 
@@ -327,16 +311,6 @@
     private static string GetCell(Dictionary<string, string> row, string column)
     {
         return row.TryGetValue(column, out var value) ? value : string.Empty;
-    }
-
-    private static string GuessTargetField(string column)
-    {
-        var normalized = column.Replace(" ", string.Empty, StringComparison.OrdinalIgnoreCase)
-            .Replace("_", string.Empty, StringComparison.OrdinalIgnoreCase)
-            .Replace("-", string.Empty, StringComparison.OrdinalIgnoreCase);
-
-        return targetFields.FirstOrDefault(target => target.EndsWith(normalized, StringComparison.OrdinalIgnoreCase))
-            ?? column;
     }
 
     private static string GetImportTypeLabel(ImportType importType)

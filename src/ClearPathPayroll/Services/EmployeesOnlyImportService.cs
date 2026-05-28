@@ -13,13 +13,14 @@ public class EmployeesOnlyImportService
 
     public static readonly string[] RequiredTargetFields =
     {
-        "FirstName",
-        "LastName",
         "PayType"
     };
 
     public static readonly string[] OptionalTargetFields =
     {
+        "FullName",
+        "FirstName",
+        "LastName",
         "EmployeeNumber",
         "SSNLast4",
         "MiddleInitial",
@@ -137,6 +138,9 @@ public class EmployeesOnlyImportService
         var errors = new List<ImportError>();
         var mappings = batch.Mappings.ToList();
         var targetFields = new HashSet<string>(mappings.Select(mapping => mapping.TargetField), StringComparer.OrdinalIgnoreCase);
+        var hasFirstName = targetFields.Contains("FirstName");
+        var hasLastName = targetFields.Contains("LastName");
+        var hasFullName = targetFields.Contains("FullName");
 
         foreach (var required in RequiredTargetFields)
         {
@@ -144,6 +148,11 @@ public class EmployeesOnlyImportService
             {
                 errors.Add(CreateBatchError(batch.ImportBatchId, "RequiredMappingMissing", $"Required employee field '{required}' is not mapped."));
             }
+        }
+
+        if (!hasFullName && (!hasFirstName || !hasLastName))
+        {
+            errors.Add(CreateBatchError(batch.ImportBatchId, "EmployeeNameMappingMissing", "Map either FirstName and LastName, or map FullName before importing employees."));
         }
 
         if (!targetFields.Contains("SSNLast4") && !targetFields.Contains("EmployeeNumber"))
@@ -253,18 +262,29 @@ public class EmployeesOnlyImportService
 
         var firstName = Get("FirstName");
         var lastName = Get("LastName");
+        var fullName = Get("FullName");
         var employeeNumber = Get("EmployeeNumber");
         var ssnLast4 = Get("SSNLast4");
         var payTypeText = Get("PayType");
+        var name = ResolveEmployeeName(
+            firstName,
+            lastName,
+            fullName,
+            HasTargetMapping(mappings, "FirstName") && HasTargetMapping(mappings, "LastName"));
 
-        if (string.IsNullOrWhiteSpace(firstName))
+        if (string.IsNullOrWhiteSpace(name.FirstName))
         {
             errors.Add(CreateRowError(importBatchId, row, "FirstName", "RequiredValueMissing", "FirstName is required."));
         }
 
-        if (string.IsNullOrWhiteSpace(lastName))
+        if (string.IsNullOrWhiteSpace(name.LastName))
         {
             errors.Add(CreateRowError(importBatchId, row, "LastName", "RequiredValueMissing", "LastName is required."));
+        }
+
+        if (name.NeedsReview)
+        {
+            errors.Add(CreateRowError(importBatchId, row, "FullName", "FullNameNeedsReview", "FullName could not be confidently parsed. Map FirstName and LastName or edit the FullName value before importing."));
         }
 
         if (string.IsNullOrWhiteSpace(employeeNumber) && string.IsNullOrWhiteSpace(ssnLast4))
@@ -313,17 +333,17 @@ public class EmployeesOnlyImportService
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(firstName) && !string.IsNullOrWhiteSpace(lastName) && !string.IsNullOrWhiteSpace(ssnLast4))
+        if (!string.IsNullOrWhiteSpace(name.FirstName) && !string.IsNullOrWhiteSpace(name.LastName) && !string.IsNullOrWhiteSpace(ssnLast4))
         {
-            var key = $"{firstName}|{lastName}|{ssnLast4}";
+            var key = $"{name.FirstName}|{name.LastName}|{ssnLast4}";
             if (!fileNameSsnKeys.Add(key))
             {
                 errors.Add(CreateRowError(importBatchId, row, "SSNLast4", "DuplicateNameSsnInFile", "Duplicate employee name and SSNLast4 found in the import file."));
             }
 
             if (existingEmployees.Any(employee =>
-                    string.Equals(employee.FirstName, firstName, StringComparison.OrdinalIgnoreCase)
-                    && string.Equals(employee.LastName, lastName, StringComparison.OrdinalIgnoreCase)
+                    string.Equals(employee.FirstName, name.FirstName, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(employee.LastName, name.LastName, StringComparison.OrdinalIgnoreCase)
                     && string.Equals(employee.SSNLast4, ssnLast4, StringComparison.OrdinalIgnoreCase)))
             {
                 errors.Add(CreateRowError(importBatchId, row, "SSNLast4", "DuplicateNameSsn", "Employee name and SSNLast4 already exist for the selected company."));
@@ -339,6 +359,11 @@ public class EmployeesOnlyImportService
         TryParsePayType(Get("PayType"), out var payType);
         TryParseMoney(Get("HourlyRate"), out var hourlyRate, required: false);
         TryParseMoney(Get("AnnualSalary"), out var annualSalary, required: false);
+        var name = ResolveEmployeeName(
+            Get("FirstName"),
+            Get("LastName"),
+            Get("FullName"),
+            HasTargetMapping(mappings, "FirstName") && HasTargetMapping(mappings, "LastName"));
 
         var address1 = EmptyToNull(Get("Address1"));
         var city = EmptyToNull(Get("City")) ?? "Imported";
@@ -348,9 +373,9 @@ public class EmployeesOnlyImportService
         return new Employee
         {
             CompanyId = companyId,
-            FirstName = Get("FirstName").Trim(),
-            MiddleInitial = Truncate(EmptyToNull(Get("MiddleInitial")), 1),
-            LastName = Get("LastName").Trim(),
+            FirstName = name.FirstName.Trim(),
+            MiddleInitial = Truncate(EmptyToNull(Get("MiddleInitial")) ?? name.MiddleInitial, 1),
+            LastName = name.LastName.Trim(),
             SSNLast4 = string.IsNullOrWhiteSpace(Get("SSNLast4")) ? "0000" : Get("SSNLast4").Trim(),
             EmployeeNumber = EmptyToNull(Get("EmployeeNumber")),
             DateOfBirth = new DateTime(1900, 1, 1),
@@ -377,6 +402,69 @@ public class EmployeesOnlyImportService
             CreatedAt = DateTime.UtcNow,
             PayrollProfileCreatedAt = DateTime.UtcNow
         };
+    }
+
+    public static EmployeeFullNameParseResult ParseFullName(string fullName)
+    {
+        var value = fullName.Trim();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return EmployeeFullNameParseResult.NeedsReviewResult();
+        }
+
+        if (value.Contains(',', StringComparison.Ordinal))
+        {
+            var commaParts = value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            if (commaParts.Length == 2)
+            {
+                var firstParts = commaParts[1].Split(' ', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+                if (firstParts.Length >= 1 && LooksLikeNameToken(firstParts[0]) && LooksLikeNameToken(commaParts[0]))
+                {
+                    return new EmployeeFullNameParseResult(
+                        firstParts[0],
+                        firstParts.Length > 1 ? firstParts[1][..1] : null,
+                        commaParts[0],
+                        NeedsReview: false);
+                }
+            }
+
+            return EmployeeFullNameParseResult.NeedsReviewResult();
+        }
+
+        var parts = value.Split(' ', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 2 && parts.All(LooksLikeNameToken))
+        {
+            return new EmployeeFullNameParseResult(parts[0], null, parts[1], NeedsReview: false);
+        }
+
+        if (parts.Length == 3 && parts.All(LooksLikeNameToken))
+        {
+            return new EmployeeFullNameParseResult(parts[0], parts[1][..1], parts[2], NeedsReview: false);
+        }
+
+        return EmployeeFullNameParseResult.NeedsReviewResult();
+    }
+
+    private static EmployeeFullNameParseResult ResolveEmployeeName(string firstName, string lastName, string fullName, bool preferSeparateNameFields)
+    {
+        if (preferSeparateNameFields || string.IsNullOrWhiteSpace(fullName))
+        {
+            return new EmployeeFullNameParseResult(firstName.Trim(), null, lastName.Trim(), NeedsReview: false);
+        }
+
+        return ParseFullName(fullName);
+    }
+
+    private static bool HasTargetMapping(IEnumerable<ImportMapping> mappings, string targetField)
+    {
+        return mappings.Any(mapping => string.Equals(mapping.TargetField, targetField, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool LooksLikeNameToken(string value)
+    {
+        return value.Length > 0
+            && value.Any(char.IsLetter)
+            && value.All(character => char.IsLetter(character) || character == '\'' || character == '-');
     }
 
     private static string GetMappedValue(List<ImportMapping> mappings, Dictionary<string, string> rowValues, string targetField)
@@ -500,6 +588,14 @@ public class EmployeesOnlyImportService
     }
 
     private sealed record ExistingEmployeeIdentity(string? EmployeeNumber, string FirstName, string LastName, string SSNLast4);
+}
+
+public sealed record EmployeeFullNameParseResult(string FirstName, string? MiddleInitial, string LastName, bool NeedsReview)
+{
+    public static EmployeeFullNameParseResult NeedsReviewResult()
+    {
+        return new EmployeeFullNameParseResult(string.Empty, null, string.Empty, NeedsReview: true);
+    }
 }
 
 public class EmployeesOnlyImportValidationResult

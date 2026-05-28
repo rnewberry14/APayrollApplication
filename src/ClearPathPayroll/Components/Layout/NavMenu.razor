@@ -1,141 +1,65 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
+<div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
-        <a class="navbar-brand" href="">ClearPathPayroll</a>
+        <a class="navbar-brand" href="">ClearPath Payroll</a>
     </div>
 </div>
 
 <input type="checkbox" title="Navigation menu" class="navbar-toggler" />
 
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="help">
-                <span class="bi bi-file-earmark-text-fill-nav-menu" aria-hidden="true"></span> Help Center
-            </NavLink>
-        </div>
-
-        @using ClearPathPayroll.Configuration
-@using Microsoft.Extensions.Options
-@inject IHostEnvironment HostEnvironment
-@inject IOptions<PrototypeModeOptions> PrototypeOptions
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="demo/seed-data">
-                <span class="bi bi-seedling-fill-nav-menu" aria-hidden="true"></span> Create Demo Data
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="prototype-test-checklist">
-                <span class="bi bi-list-check-nav-menu" aria-hidden="true"></span> Test Checklist
-            </NavLink>
-        </div>
-
-        <!-- Setup Section -->
-        <div class="nav-item px-3">
-            <div class="nav-link" style="cursor: pointer; padding: 0.5rem 0.75rem; color: #d7d7d7; font-weight: 600; margin-top: 0.5rem;">
-                <span class="bi bi-gear-fill-nav-menu" aria-hidden="true"></span> Setup
+<div class="nav-scrollable">
+    <nav class="flex-column" aria-label="Main navigation">
+        <details class="nav-section" open>
+            <summary><span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home</summary>
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="" Match="NavLinkMatch.All">Home</NavLink>
             </div>
-            <nav class="flex-column ms-3">
-                <div class="nav-item px-0">
-                    <NavLink class="nav-link" href="setup/company">
-                        <span class="bi bi-building-nav-menu" aria-hidden="true"></span> Company
-                    </NavLink>
-                </div>
-                <div class="nav-item px-0">
-                    <NavLink class="nav-link" href="setup/employer">
-                        <span class="bi bi-building-nav-menu" aria-hidden="true"></span> Employer
-                    </NavLink>
-                </div>
-                <div class="nav-item px-0">
-                    <NavLink class="nav-link" href="setup/employer/payroll-settings">
-                        <span class="bi bi-gear-fill-nav-menu" aria-hidden="true"></span> Payroll Settings
-                    </NavLink>
-                </div>
-                <div class="nav-item px-0">
-                    <NavLink class="nav-link" href="setup/employees">
-                        <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Employees
-                    </NavLink>
-                </div>
-                <div class="nav-item px-0">
-                    <NavLink class="nav-link" href="setup/user-defined-fields">
-                        <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> User-Defined Fields
-                    </NavLink>
-                </div>
-                <div class="nav-item px-0">
-                    <NavLink class="nav-link" href="setup/field-templates">
-                        <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Field Templates
-                    </NavLink>
-                </div>
-                <div class="nav-item px-0">
-                    <NavLink class="nav-link" href="setup/pay-schedules">
-                        <span class="bi bi-calendar-nav-menu" aria-hidden="true"></span> Pay Schedules
-                    </NavLink>
-                </div>
-            </nav>
-        </div>
+        </details>
 
-        <!-- Payroll Section -->
-        <div class="nav-item px-3">
-            <div class="nav-link" style="cursor: pointer; padding: 0.5rem 0.75rem; color: #d7d7d7; font-weight: 600; margin-top: 0.5rem;">
-                <span class="bi bi-list-check-nav-menu" aria-hidden="true"></span> Payroll
-            </div>
-            <nav class="flex-column ms-3">
-                <div class="nav-item px-0">
-                    <NavLink class="nav-link" href="payroll/create">
-                        <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Create Payroll Run
-                    </NavLink>
-                </div>
-            </nav>
-        </div>
+        <details class="nav-section" open>
+            <summary><span class="bi bi-file-earmark-text-fill-nav-menu" aria-hidden="true"></span> Help Center</summary>
+            <div class="nav-item px-3"><NavLink class="nav-link" href="help">Help Center</NavLink></div>
+            <div class="nav-item px-3"><NavLink class="nav-link" href="prototype-test-checklist">Test Checklist</NavLink></div>
+            <div class="nav-item px-3"><NavLink class="nav-link" href="readme">Read Me</NavLink></div>
+            <div class="nav-item px-3"><NavLink class="nav-link" href="demo/seed-data">Create Demo Data</NavLink></div>
+            <div class="nav-item px-3"><NavLink class="nav-link" href="demo/reset-data">Delete or Reset Demo Data</NavLink></div>
+        </details>
 
-        <!-- Imports Section -->
-        <div class="nav-item px-3">
-            <div class="nav-link" style="cursor: pointer; padding: 0.5rem 0.75rem; color: #d7d7d7; font-weight: 600; margin-top: 0.5rem;">
-                <span class="bi bi-file-earmark-text-fill-nav-menu" aria-hidden="true"></span> Imports
-            </div>
-            <nav class="flex-column ms-3">
-                <div class="nav-item px-0"><NavLink class="nav-link" href="setup/imports">Import Center</NavLink></div>
-                <div class="nav-item px-0"><NavLink class="nav-link" href="import/employees">Employees</NavLink></div>
-                <div class="nav-item px-0"><NavLink class="nav-link" href="import/checks">Checks</NavLink></div>
-                <div class="nav-item px-0"><NavLink class="nav-link" href="import/employees-and-checks">Employees And Checks</NavLink></div>
-                <div class="nav-item px-0"><NavLink class="nav-link" href="import/tax-deposits">Tax Deposits</NavLink></div>
-                <div class="nav-item px-0"><NavLink class="nav-link" href="import/quickbooks-desktop">QuickBooks Desktop</NavLink></div>
-                <div class="nav-item px-0"><NavLink class="nav-link" href="import/quickbooks-online">QuickBooks Online</NavLink></div>
-                <div class="nav-item px-0"><NavLink class="nav-link" href="import/w2">W-2 Spreadsheet</NavLink></div>
-                <div class="nav-item px-0"><NavLink class="nav-link" href="import/w2-pdf">W-2 PDF</NavLink></div>
-            </nav>
-        </div>
+        <details class="nav-section" open>
+            <summary><span class="bi bi-building-nav-menu" aria-hidden="true"></span> Payer/Employer</summary>
+            <div class="nav-item px-3"><NavLink class="nav-link" href="employers/select">Select</NavLink></div>
+            <div class="nav-item px-3"><NavLink class="nav-link" href="employers/new">New/Add</NavLink></div>
+            <div class="nav-item px-3"><NavLink class="nav-link" href="employers/edit">Edit</NavLink></div>
+            <div class="nav-item px-3"><NavLink class="nav-link" href="employers/payroll-settings">Payroll Settings</NavLink></div>
+            <div class="nav-item px-3"><NavLink class="nav-link" href="setup/user-defined-fields">User Defined Fields</NavLink></div>
+        </details>
 
-        <!-- Reports Section -->
-        <div class="nav-item px-3">
-            <div class="nav-link" style="cursor: pointer; padding: 0.5rem 0.75rem; color: #d7d7d7; font-weight: 600; margin-top: 0.5rem;">
-                <span class="bi bi-file-earmark-text-fill-nav-menu" aria-hidden="true"></span> Reports
-            </div>
-            <nav class="flex-column ms-3">
-                <div class="nav-item px-0">
-                    <NavLink class="nav-link" href="reports/payroll-register">
-                        <span class="bi bi-list-check-nav-menu" aria-hidden="true"></span> Payroll Register
-                    </NavLink>
-                </div>
-                <div class="nav-item px-0">
-                    <NavLink class="nav-link" href="reports/tax-liability">
-                        <span class="bi bi-file-text-nav-menu" aria-hidden="true"></span> Tax Liability
-                    </NavLink>
-                </div>
-                <div class="nav-item px-0">
-                    <NavLink class="nav-link" href="official-sources">
-                        <span class="bi bi-file-text-nav-menu" aria-hidden="true"></span> Official Sources
-                    </NavLink>
-                </div>
-            </nav>
-        </div>
+        <details class="nav-section" open>
+            <summary><span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Employees</summary>
+            <div class="nav-item px-3"><NavLink class="nav-link" href="employees/edit">Edit</NavLink></div>
+            <div class="nav-item px-3"><NavLink class="nav-link" href="employees/new">New/Add</NavLink></div>
+        </details>
+
+        <details class="nav-section" open>
+            <summary><span class="bi bi-list-check-nav-menu" aria-hidden="true"></span> Payroll</summary>
+            <div class="nav-item px-3"><NavLink class="nav-link" href="setup/pay-schedules">Pay Schedule</NavLink></div>
+            <div class="nav-item px-3"><NavLink class="nav-link" href="payroll/create">Create Payroll Run</NavLink></div>
+            <div class="nav-item px-3"><NavLink class="nav-link" href="payroll/print">Print Checks/Stubs</NavLink></div>
+            <div class="nav-item px-3"><NavLink class="nav-link" href="payroll/view">View Payrolls</NavLink></div>
+        </details>
+
+        <details class="nav-section" open>
+            <summary><span class="bi bi-file-earmark-text-fill-nav-menu" aria-hidden="true"></span> Imports Center</summary>
+            <div class="nav-item px-3"><NavLink class="nav-link" href="imports/employer-employee">Import Employer and Employee Information</NavLink></div>
+            <div class="nav-item px-3"><NavLink class="nav-link" href="imports/employees-checks">Import Employees and Paychecks</NavLink></div>
+            <div class="nav-item px-3"><NavLink class="nav-link" href="imports/employees">Import Employees</NavLink></div>
+            <div class="nav-item px-3"><NavLink class="nav-link" href="imports/paychecks">Import Paychecks</NavLink></div>
+            <div class="nav-item px-3"><NavLink class="nav-link" href="imports/tax-deposits">Import Tax Deposits</NavLink></div>
+            <details class="nav-subsection" open>
+                <summary>Import from QuickBooks</summary>
+                <div class="nav-item px-3"><NavLink class="nav-link" href="imports/quickbooks/desktop">Desktop</NavLink></div>
+                <div class="nav-item px-3"><NavLink class="nav-link" href="imports/quickbooks/online">Online</NavLink></div>
+            </details>
+            <div class="nav-item px-3"><NavLink class="nav-link" href="imports/w2">Import W-2 Information</NavLink></div>
+        </details>
     </nav>
 </div>
-

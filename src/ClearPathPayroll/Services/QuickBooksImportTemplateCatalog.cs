@@ -51,18 +51,7 @@ public class QuickBooksImportTemplateCatalog
 
     private static bool Matches(QuickBooksImportField field, string sourceColumn)
     {
-        return field.Aliases.Any(alias => Normalize(alias) == Normalize(sourceColumn));
-    }
-
-    private static string Normalize(string value)
-    {
-        return value.Replace(" ", string.Empty, StringComparison.OrdinalIgnoreCase)
-            .Replace("_", string.Empty, StringComparison.OrdinalIgnoreCase)
-            .Replace("-", string.Empty, StringComparison.OrdinalIgnoreCase)
-            .Replace("/", string.Empty, StringComparison.OrdinalIgnoreCase)
-            .Replace(".", string.Empty, StringComparison.OrdinalIgnoreCase)
-            .Trim()
-            .ToUpperInvariant();
+        return field.Aliases.Any(alias => ImportFieldAliasMatcher.Normalize(alias) == ImportFieldAliasMatcher.Normalize(sourceColumn));
     }
 
     private static readonly IReadOnlyList<QuickBooksImportTemplate> DesktopTemplates = new[]

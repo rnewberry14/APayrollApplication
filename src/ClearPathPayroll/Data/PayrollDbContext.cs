@@ -54,9 +54,12 @@ public class PayrollDbContext : DbContext
             entity.Property(c => c.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
             entity.Property(c => c.FutaRatePlaceholder).HasPrecision(9, 4);
             entity.Property(c => c.SutaRate).HasPrecision(9, 4);
+            entity.Property(c => c.LocalEmployerTaxRate).HasPrecision(9, 4);
             entity.Property(c => c.County).HasMaxLength(100);
             entity.Property(c => c.LocalTaxLocalityPlaceholder).HasMaxLength(100);
             entity.Property(c => c.SutaEmployerAccountNumberPlaceholder).HasMaxLength(100);
+            entity.Property(c => c.SUIN).HasMaxLength(100);
+            entity.Property(c => c.SEIN).HasMaxLength(100);
             entity.Property(c => c.StateWithholdingAccountNumberPlaceholder).HasMaxLength(100);
             entity.Property(c => c.LocalTaxAccountNumberPlaceholder).HasMaxLength(100);
             entity.Property(c => c.DepositSchedulePlaceholder).HasMaxLength(100);

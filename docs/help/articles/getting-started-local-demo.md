@@ -21,12 +21,15 @@ Have the unzipped tester package on a Windows computer. Use fake/demo data only.
 5. Open `http://localhost:5080` if the browser does not open automatically.
 6. Open `/prototype-test-checklist`.
 7. Open `/demo/seed-data` and create demo data.
+8. Use the grouped sidebar sections to move through the demo:
+   Home, Help Center, Payer/Employer, Employees, Payroll, and Imports Center.
 
 ## What to check
 
 - The browser opens the local app.
 - A local/demo safety message is visible.
 - The app does not ask for real payroll data.
+- The sidebar shows grouped navigation categories with short tester-friendly labels.
 
 ## Common messages or errors
 

@@ -115,6 +115,12 @@ public class Company : IValidatableObject
     [StringLength(100)]
     public string? SutaEmployerAccountNumberPlaceholder { get; set; }
 
+    [StringLength(100)]
+    public string? SUIN { get; set; }
+
+    [StringLength(100)]
+    public string? SEIN { get; set; }
+
     [Range(0, 100)]
     public decimal? SutaRate { get; set; }
 
@@ -129,6 +135,9 @@ public class Company : IValidatableObject
 
     [StringLength(100)]
     public string? FilingFrequencyPlaceholder { get; set; }
+
+    [Range(0, 100)]
+    public decimal? LocalEmployerTaxRate { get; set; }
 
     public DateTime? EmployerTaxEffectiveDate { get; set; }
 
@@ -153,6 +162,11 @@ public class Company : IValidatableObject
         {
             yield return result;
         }
+
+        foreach (var result in ValidatePhone())
+        {
+            yield return result;
+        }
     }
 
     private static IEnumerable<ValidationResult> ValidatePlaceholderAccount(string memberName, string? value)
@@ -162,6 +176,20 @@ public class Company : IValidatableObject
             yield return new ValidationResult(
                 "Account number fields require a placeholder or masked value, not a plain account number.",
                 new[] { memberName });
+        }
+    }
+
+    private IEnumerable<ValidationResult> ValidatePhone()
+    {
+        if (string.IsNullOrWhiteSpace(Phone))
+        {
+            yield break;
+        }
+
+        var digits = new string(Phone.Where(char.IsDigit).ToArray());
+        if (digits.Length != 10)
+        {
+            yield return new ValidationResult("Phone number must contain 10 digits.", new[] { nameof(Phone) });
         }
     }
 }

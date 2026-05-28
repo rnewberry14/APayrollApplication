@@ -105,7 +105,7 @@ ________________________________________________________________________________
 - [ ] Open employer setup.
 - [ ] Add employer.
 - [ ] Edit employer.
-- [ ] Confirm FEIN is masked after save.
+- [ ] Confirm FEIN remains the user-entered value after save.
 - [ ] Add employer tax settings.
 - [ ] Add SUTA rate.
 - [ ] Add payroll items.

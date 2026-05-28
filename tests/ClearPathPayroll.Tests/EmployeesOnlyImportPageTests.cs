@@ -28,7 +28,10 @@ public class EmployeesOnlyImportPageTests
         var content = ReadPage();
 
         Assert.Contains("@page \"/import/employees\"", content);
+        Assert.Contains("@page \"/imports/employees\"", content);
         Assert.Contains("<NoAdviceDisclaimer />", content);
+        Assert.Contains("<ImportProgress", content);
+        Assert.Contains("<ImportMappingPanel", content);
         Assert.Contains("Local import", content);
         Assert.Contains("No cloud upload", content);
         Assert.Contains("Do not import full SSNs", content);
@@ -45,6 +48,7 @@ public class EmployeesOnlyImportPageTests
         {
             "FirstName",
             "LastName",
+            "FullName",
             "SSNLast4",
             "EmployeeNumber",
             "PayType",
@@ -56,5 +60,7 @@ public class EmployeesOnlyImportPageTests
         {
             Assert.Contains(text, content);
         }
+
+        Assert.Contains("Map either First Name and Last Name, or map Full Name.", content);
     }
 }

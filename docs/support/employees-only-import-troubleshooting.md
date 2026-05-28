@@ -7,7 +7,13 @@ ClearPath Payroll provides software tools for payroll calculation, reporting, an
 ## Common Errors
 
 - **Required employee field is not mapped.**
-  Map `FirstName`, `LastName`, and `PayType`.
+  Map `PayType` and map employee name using either `FirstName` plus `LastName`, or `FullName`.
+
+- **Map either FirstName and LastName, or map FullName before importing employees.**
+  The file needs either separate first and last name columns or one full name column.
+
+- **FullName could not be confidently parsed.**
+  Edit the full name value or map separate `FirstName` and `LastName` columns.
 
 - **Map either SSNLast4 or EmployeeNumber before importing employees.**
   The file needs one employee identity field.

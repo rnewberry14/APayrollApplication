@@ -29,7 +29,11 @@ public class QuickBooksImportPageTests
 
         Assert.Contains("@page \"/import/quickbooks-desktop\"", content);
         Assert.Contains("@page \"/import/quickbooks-online\"", content);
+        Assert.Contains("@page \"/imports/quickbooks/desktop\"", content);
+        Assert.Contains("@page \"/imports/quickbooks/online\"", content);
         Assert.Contains("<NoAdviceDisclaimer />", content);
+        Assert.Contains("<ImportProgress", content);
+        Assert.Contains("<ImportMappingPanel", content);
         Assert.Contains("does not connect to QuickBooks", content);
         Assert.Contains("store Intuit credentials", content);
         Assert.Contains("upload files", content);
@@ -47,5 +51,6 @@ public class QuickBooksImportPageTests
         Assert.Contains("Save the exported file locally", content);
         Assert.Contains("Map columns", content);
         Assert.Contains("Validate Mappings", content);
+        Assert.Contains("/imports/quickbooks/online", content);
     }
 }

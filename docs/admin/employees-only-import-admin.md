@@ -17,6 +17,8 @@ Employee import blocks duplicates by:
 - `EmployeeNumber` when an employee number is mapped.
 - `FirstName` + `LastName` + `SSNLast4` when SSN last four is mapped.
 
+Employee name mapping is valid when either `FirstName` and `LastName` are mapped, or `FullName` is mapped. `FullName` is parsed into first and last name before duplicate checks.
+
 The duplicate checks compare against both the selected local company and the rows in the selected file.
 
 ## Operational Steps

@@ -1,0 +1,90 @@
+@page "/readme"
+@page "/demo/reset-data"
+@page "/payroll/print"
+@page "/payroll/view"
+@inject NavigationManager Navigation
+
+<PageTitle>@Title - ClearPath Payroll</PageTitle>
+
+<div class="container-fluid mt-4">
+    <NoAdviceDisclaimer />
+
+    <div class="alert alert-success" role="status">
+        <strong>Local demo only:</strong> This page does not submit ACH, submit tax filings, transmit data externally, or store data outside the local demo database.
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-lg-8">
+            <h2>@Title</h2>
+            <p class="text-muted">Feature placeholder for testing.</p>
+        </div>
+        <div class="col-lg-4 text-lg-end">
+            <a class="btn btn-outline-secondary" href="/help">Help Center</a>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <p>@Message</p>
+
+            @if (RelatedLinks.Any())
+            {
+                <div class="d-flex flex-wrap gap-2 mt-3">
+                    @foreach (var link in RelatedLinks)
+                    {
+                        <a class="btn btn-outline-primary" href="@link.Href">@link.Label</a>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private string Path => new Uri(Navigation.Uri).AbsolutePath.TrimEnd('/').ToLowerInvariant();
+
+    private string Title => Path switch
+    {
+        "/readme" => "Read Me",
+        "/demo/reset-data" => "Delete or Reset Demo Data",
+        "/payroll/print" => "Print Checks/Stubs",
+        "/payroll/view" => "View Payrolls",
+        _ => "Feature Placeholder"
+    };
+
+    private string Message => Path switch
+    {
+        "/readme" => "Open README-TESTERS.md in the tester package folder for the full local demo startup instructions. This in-app placeholder gives testers a stable menu target.",
+        "/demo/reset-data" => "Use RESET-DEMO-DATA.bat from the extracted tester package folder to remove local demo database files. The reset script is designed to stay inside the application folder.",
+        "/payroll/print" => "Printable checks and pay stubs open from specific payroll employee records after demo data and payroll runs exist.",
+        "/payroll/view" => "Payroll viewing is represented by payroll reports and payroll preview pages. Open Payroll Register to review completed local demo payroll information.",
+        _ => "This menu target is reserved for tester navigation review."
+    };
+
+    private IReadOnlyList<RelatedLink> RelatedLinks => Path switch
+    {
+        "/readme" => new[]
+        {
+            new RelatedLink("Getting Started Help", "/help?article=getting-started-local-demo"),
+            new RelatedLink("Manual Test Checklist", "/prototype-test-checklist")
+        },
+        "/demo/reset-data" => new[]
+        {
+            new RelatedLink("Create Demo Data", "/demo/seed-data"),
+            new RelatedLink("Startup Troubleshooting", "/help?article=troubleshooting-startup-problems")
+        },
+        "/payroll/print" => new[]
+        {
+            new RelatedLink("Payroll Register", "/reports/payroll-register"),
+            new RelatedLink("Create Payroll Run", "/payroll/create")
+        },
+        "/payroll/view" => new[]
+        {
+            new RelatedLink("Payroll Register", "/reports/payroll-register"),
+            new RelatedLink("Tax Liability Report", "/reports/tax-liability")
+        },
+        _ => Array.Empty<RelatedLink>()
+    };
+
+    private sealed record RelatedLink(string Label, string Href);
+}

@@ -1,4 +1,5 @@
 @page "/import/employees"
+@page "/imports/employees"
 @using ClearPathPayroll.Domain
 @using ClearPathPayroll.Services
 @inject CompanyService CompanyService
@@ -20,10 +21,11 @@
     <div class="card mb-4">
         <div class="card-header bg-light">Accepted Employee Columns</div>
         <div class="card-body">
-            <p class="mb-2"><strong>Required:</strong> FirstName, LastName, PayType, and SSNLast4 or EmployeeNumber.</p>
+            <p class="mb-2"><strong>Required:</strong> PayType, SSNLast4 or EmployeeNumber, and employee name.</p>
+            <p class="mb-2"><strong>Name mapping:</strong> Map either First Name and Last Name, or map Full Name.</p>
             <p class="mb-0">
                 <strong>Optional:</strong>
-                MiddleInitial, Address1, Address2, City, State, ZipCode, Email, Phone, HireDate, EmploymentStatus,
+                FullName, FirstName, LastName, MiddleInitial, Address1, Address2, City, State, ZipCode, Email, Phone, HireDate, EmploymentStatus,
                 HourlyRate, AnnualSalary, FederalFilingStatus, ExtraWithholding, StateTaxState, StateFilingStatus, DirectDepositLast4.
             </p>
         </div>
@@ -40,6 +42,8 @@
     {
         <div class="alert @statusClass" role="status">@statusMessage</div>
     }
+
+    <ImportProgress Progress="progress" />
 
     <div class="card mb-4">
         <div class="card-header bg-light">1. Select Company And File</div>
@@ -77,53 +81,13 @@
 
     @if (parseResult != null)
     {
-        <div class="card mb-4">
-            <div class="card-header bg-light">2. Map Employee Columns</div>
-            <div class="card-body">
-                <div class="alert alert-info">
-                    Required fields: FirstName, LastName, PayType, and either SSNLast4 or EmployeeNumber.
-                </div>
-
-                @foreach (var warning in parseResult.Warnings)
-                {
-                    <div class="alert alert-warning">@warning</div>
-                }
-
-                <div class="table-responsive">
-                    <table class="table table-sm align-middle">
-                        <thead>
-                            <tr>
-                                <th>Source column</th>
-                                <th>Employee field</th>
-                                <th>Required by mapping</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var mapping in mappingInputs)
-                            {
-                                <tr>
-                                    <td>@mapping.SourceColumn</td>
-                                    <td>
-                                        <select class="form-select form-select-sm" @bind="mapping.TargetField">
-                                            <option value="">Do not import</option>
-                                            @foreach (var field in EmployeesOnlyImportService.AllTargetFields)
-                                            {
-                                                <option value="@field">@field</option>
-                                            }
-                                        </select>
-                                    </td>
-                                    <td>
-                                        <input class="form-check-input" type="checkbox" @bind="mapping.IsRequired" />
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-
-                <button class="btn btn-primary" @onclick="ValidateEmployees" disabled="@isWorking">Validate Employees</button>
-            </div>
-        </div>
+        <ImportMappingPanel Title="2. Map Employee Columns"
+                            Mappings="mappingInputs"
+                            TargetFields="EmployeesOnlyImportService.AllTargetFields"
+                            RequiredTargetFields="EmployeesOnlyImportService.RequiredTargetFields"
+                            IsWorking="isWorking"
+                            ValidateButtonText="Validate Employees"
+                            OnValidate="ValidateEmployees" />
 
         <div class="card mb-4">
             <div class="card-header bg-light">3. Preview Before Import</div>
@@ -176,14 +140,14 @@
                     <ul>
                         @foreach (var error in validationResult.Batch.Errors.OrderBy(error => error.RowNumber).ThenBy(error => error.ErrorCode).Take(50))
                         {
-                            <li>Row @(error.RowNumber?.ToString() ?? "batch"): @error.Message</li>
+                            <li>Row @(error.RowNumber?.ToString() ?? "batch"): @ImportFieldAliasMatcher.SanitizeErrorMessage(error.Message)</li>
                         }
                     </ul>
                 }
                 else
                 {
                     <div class="alert alert-success">Validation completed. Employee records are ready for local import.</div>
-                    <button class="btn btn-success" @onclick="ConfirmEmployees" disabled="@isWorking">Confirm Employee Import</button>
+                    <button class="btn btn-success" @onclick="ConfirmEmployees" disabled="@(isWorking || progress.IsWorking)">Confirm Employee Import</button>
                 }
             </div>
         </div>
@@ -201,6 +165,7 @@
     private string statusClass = "alert-info";
     private bool demoWarningAcknowledged;
     private bool isWorking;
+    private ImportProgressModel progress = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -220,16 +185,20 @@
         try
         {
             isWorking = true;
+            progress.MoveTo(ImportProgressStage.ReadingFile, "Reading the selected employee file.");
             await using var stream = args.File.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+            progress.MoveTo(ImportProgressStage.ParsingRows, "Parsing employee rows locally.");
             parseResult = await EmployeeImportService.ParseFileAsync(stream, args.File.Name);
+            progress.MoveTo(ImportProgressStage.DetectingColumns, "Detecting employee columns.", parseResult.Rows.Count, parseResult.Warnings.Count, 0);
             mappingInputs = parseResult.Columns
                 .Select(column => new ImportMappingInput
                 {
                     SourceColumn = column,
-                    TargetField = GuessEmployeeField(column),
-                    IsRequired = EmployeesOnlyImportService.RequiredTargetFields.Contains(GuessEmployeeField(column), StringComparer.OrdinalIgnoreCase)
+                    TargetField = ImportFieldAliasMatcher.SuggestTargetField(column, EmployeesOnlyImportService.AllTargetFields),
+                    IsRequired = EmployeesOnlyImportService.RequiredTargetFields.Contains(ImportFieldAliasMatcher.SuggestTargetField(column, EmployeesOnlyImportService.AllTargetFields), StringComparer.OrdinalIgnoreCase)
                 })
                 .ToList();
+            progress.MoveTo(ImportProgressStage.MappingColumns, "Review suggested employee mappings.", parseResult.Rows.Count, parseResult.Warnings.Count, 0);
             statusClass = "alert-success";
             statusMessage = "Employee file parsed locally. Review mappings and preview before validation.";
         }
@@ -238,7 +207,8 @@
             parseResult = null;
             mappingInputs.Clear();
             statusClass = "alert-danger";
-            statusMessage = $"Unable to parse employee file: {ex.Message}";
+            statusMessage = $"Unable to parse employee file: {ImportFieldAliasMatcher.SanitizeErrorMessage(ex.Message)}";
+            progress.MoveTo(ImportProgressStage.Failed, "The employee file could not be parsed locally.", errorCount: 1);
         }
         finally
         {
@@ -258,6 +228,7 @@
         try
         {
             isWorking = true;
+            progress.MoveTo(ImportProgressStage.ValidatingRows, "Validating employee rows locally.", parseResult.Rows.Count);
             validationResult = await EmployeeImportService.ValidateAsync(
                 selectedCompanyId,
                 selectedFileName,
@@ -268,11 +239,18 @@
             statusMessage = validationResult.CanImport
                 ? "Employees validated locally. Confirm import when the preview is acceptable."
                 : "Employee validation found blocking errors.";
+            progress.MoveTo(
+                validationResult.CanImport ? ImportProgressStage.PreviewReady : ImportProgressStage.Failed,
+                validationResult.CanImport ? "Preview is ready for final review." : "Validation found employee import errors.",
+                validationResult.Batch.RowCount,
+                0,
+                validationResult.Batch.ErrorCount);
         }
         catch (Exception ex)
         {
             statusClass = "alert-danger";
-            statusMessage = $"Unable to validate employees: {ex.Message}";
+            statusMessage = $"Unable to validate employees: {ImportFieldAliasMatcher.SanitizeErrorMessage(ex.Message)}";
+            progress.MoveTo(ImportProgressStage.Failed, "Employee validation failed with a safe summary message.", errorCount: 1);
         }
         finally
         {
@@ -292,6 +270,7 @@
         try
         {
             isWorking = true;
+            progress.MoveTo(ImportProgressStage.SavingImport, "Saving confirmed employee records locally.", validationResult.Batch.RowCount, 0, validationResult.Batch.ErrorCount);
             var result = await EmployeeImportService.ConfirmAsync(selectedCompanyId, validationResult.Batch.ImportBatchId);
             validationResult = new EmployeesOnlyImportValidationResult
             {
@@ -300,11 +279,13 @@
             };
             statusClass = "alert-success";
             statusMessage = $"{result.ImportedEmployeeCount} employee records imported into the local database.";
+            progress.MoveTo(ImportProgressStage.Complete, "Employee import saved locally.", result.Batch.RowCount, 0, 0);
         }
         catch (Exception ex)
         {
             statusClass = "alert-danger";
-            statusMessage = $"Unable to confirm employee import: {ex.Message}";
+            statusMessage = $"Unable to confirm employee import: {ImportFieldAliasMatcher.SanitizeErrorMessage(ex.Message)}";
+            progress.MoveTo(ImportProgressStage.Failed, "Saving employee import failed.", errorCount: 1);
         }
         finally
         {
@@ -315,23 +296,6 @@
     private static string GetCell(Dictionary<string, string> row, string column)
     {
         return row.TryGetValue(column, out var value) ? value : string.Empty;
-    }
-
-    private static string GuessEmployeeField(string column)
-    {
-        var normalized = column.Replace(" ", string.Empty, StringComparison.OrdinalIgnoreCase)
-            .Replace("_", string.Empty, StringComparison.OrdinalIgnoreCase)
-            .Replace("-", string.Empty, StringComparison.OrdinalIgnoreCase);
-
-        if (string.Equals(normalized, "FederalFilingStatus", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(normalized, "FilingStatus", StringComparison.OrdinalIgnoreCase))
-        {
-            return "FederalFilingStatus";
-        }
-
-        return EmployeesOnlyImportService.AllTargetFields.FirstOrDefault(field =>
-            string.Equals(field, normalized, StringComparison.OrdinalIgnoreCase))
-            ?? string.Empty;
     }
 
     private void ResetStatus()

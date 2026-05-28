@@ -1,4 +1,7 @@
 @page "/setup/employer"
+@page "/employers/select"
+@page "/employers/new"
+@page "/employers/edit"
 @using System.ComponentModel.DataAnnotations
 @using ClearPathPayroll.Domain
 @using ClearPathPayroll.Services
@@ -57,7 +60,7 @@
                                     <tr>
                                         <td>
                                             <strong>@company.LegalName</strong>
-                                            <div class="small text-muted">FEIN: @CompanyService.MaskFEIN(company.FEIN)</div>
+                                            <div class="small text-muted">FEIN: @(string.IsNullOrWhiteSpace(company.FEIN) ? "Not set" : company.FEIN)</div>
                                         </td>
                                         <td>@(company.IsActive ? "Active" : "Inactive")</td>
                                         <td class="text-end">
@@ -98,10 +101,10 @@
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">FEIN</label>
-                                    <InputText class="form-control" maxlength="10" @bind-Value="feinEntry" placeholder="00-0000000" />
+                                    <InputText class="form-control" maxlength="10" @bind-Value="editingCompany.FEIN" placeholder="12-3456789" />
                                     @if (editingCompany.CompanyId > 0)
                                     {
-                                        <div class="form-text">Saved FEIN: @CompanyService.MaskFEIN(editingCompany.FEIN)</div>
+                                        <div class="form-text">Saved FEIN value shown as entered by user.</div>
                                     }
                                     <ValidationMessage For="() => editingCompany.FEIN" />
                                 </div>
@@ -111,7 +114,7 @@
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">Phone</label>
-                                    <InputText class="form-control" @bind-Value="editingCompany.Phone" />
+                                    <InputText class="form-control" @bind-Value="editingCompany.Phone" @onblur="FormatPhone" />
                                     <ValidationMessage For="() => editingCompany.Phone" />
                                 </div>
                                 <div class="col-md-6">
@@ -168,7 +171,6 @@
 @code {
     private List<Company> companies = new();
     private Company? editingCompany;
-    private string feinEntry = string.Empty;
     private bool isSaving;
     private string statusMessage = string.Empty;
     private string statusClass = "alert-info";
@@ -191,14 +193,12 @@
             State = "OK",
             CreatedAt = DateTime.UtcNow
         };
-        feinEntry = string.Empty;
         statusMessage = string.Empty;
     }
 
     private async Task EditEmployer(int companyId)
     {
         editingCompany = await CompanyService.GetCompanyByIdAsync(companyId);
-        feinEntry = string.Empty;
         statusMessage = string.Empty;
     }
 
@@ -209,10 +209,7 @@
             return;
         }
 
-        if (!string.IsNullOrWhiteSpace(feinEntry))
-        {
-            editingCompany.FEIN = feinEntry.Trim();
-        }
+        editingCompany.FEIN = CompanyService.FormatFEIN(editingCompany.FEIN);
 
         isSaving = true;
         statusMessage = string.Empty;
@@ -221,7 +218,6 @@
         {
             await CompanyService.SaveEmployerSetupAsync(editingCompany);
             await LoadCompanies();
-            feinEntry = string.Empty;
             statusClass = "alert-success";
             statusMessage = "Employer setup saved locally. Verify with official agency records.";
         }
@@ -244,7 +240,19 @@
     private void CancelEdit()
     {
         editingCompany = null;
-        feinEntry = string.Empty;
         statusMessage = string.Empty;
+    }
+
+    private void FormatPhone()
+    {
+        if (editingCompany == null)
+        {
+            return;
+        }
+
+        if (PhoneNumberFormatter.TryFormat(editingCompany.Phone, out var formatted, out _))
+        {
+            editingCompany.Phone = formatted;
+        }
     }
 }

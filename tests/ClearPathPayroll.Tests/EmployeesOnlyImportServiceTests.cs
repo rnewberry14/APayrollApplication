@@ -109,6 +109,122 @@ public class EmployeesOnlyImportServiceTests
     }
 
     [Fact]
+    public async Task ValidateAsync_AllowsFirstNameAndLastNameMapping()
+    {
+        await using var context = CreateContext("employees_import_first_last_passes");
+        context.Companies.Add(CreateCompany());
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+        await using var stream = ToStream("FirstName,LastName,EmployeeNumber,PayType,HourlyRate\nAda,Lovelace,E010,Hourly,25");
+        var parseResult = await service.ParseFileAsync(stream, "employees.csv");
+
+        var validation = await service.ValidateAsync(
+            1,
+            "employees.csv",
+            parseResult,
+            CreateMappings(parseResult.Columns),
+            demoModeWarningAcknowledged: true);
+
+        Assert.True(validation.CanImport);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_AllowsFullNameWithoutFirstNameAndLastName()
+    {
+        await using var context = CreateContext("employees_import_full_name_passes");
+        context.Companies.Add(CreateCompany());
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+        await using var stream = ToStream("FullName,EmployeeNumber,PayType,HourlyRate\nJohn Smith,E011,Hourly,25");
+        var parseResult = await service.ParseFileAsync(stream, "employees.csv");
+
+        var validation = await service.ValidateAsync(
+            1,
+            "employees.csv",
+            parseResult,
+            CreateMappings(parseResult.Columns),
+            demoModeWarningAcknowledged: true);
+
+        Assert.True(validation.CanImport);
+
+        var confirmation = await service.ConfirmAsync(1, validation.Batch.ImportBatchId);
+        var employee = await context.Employees.SingleAsync();
+        Assert.Equal(1, confirmation.ImportedEmployeeCount);
+        Assert.Equal("John", employee.FirstName);
+        Assert.Equal("Smith", employee.LastName);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_RejectsFirstNameWithoutLastNameOrFullName()
+    {
+        await using var context = CreateContext("employees_import_first_only_fails");
+        context.Companies.Add(CreateCompany());
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+        await using var stream = ToStream("FirstName,EmployeeNumber,PayType,HourlyRate\nAda,E012,Hourly,25");
+        var parseResult = await service.ParseFileAsync(stream, "employees.csv");
+
+        var validation = await service.ValidateAsync(
+            1,
+            "employees.csv",
+            parseResult,
+            CreateMappings(parseResult.Columns),
+            demoModeWarningAcknowledged: true);
+
+        Assert.False(validation.CanImport);
+        Assert.Contains(validation.Batch.Errors, error => error.ErrorCode == "EmployeeNameMappingMissing");
+    }
+
+    [Fact]
+    public async Task ValidateAsync_RejectsLastNameWithoutFirstNameOrFullName()
+    {
+        await using var context = CreateContext("employees_import_last_only_fails");
+        context.Companies.Add(CreateCompany());
+        await context.SaveChangesAsync();
+        var service = CreateService(context);
+        await using var stream = ToStream("LastName,EmployeeNumber,PayType,HourlyRate\nLovelace,E013,Hourly,25");
+        var parseResult = await service.ParseFileAsync(stream, "employees.csv");
+
+        var validation = await service.ValidateAsync(
+            1,
+            "employees.csv",
+            parseResult,
+            CreateMappings(parseResult.Columns),
+            demoModeWarningAcknowledged: true);
+
+        Assert.False(validation.CanImport);
+        Assert.Contains(validation.Batch.Errors, error => error.ErrorCode == "EmployeeNameMappingMissing");
+    }
+
+    [Fact]
+    public void ParseFullName_ParsesFirstLast()
+    {
+        var result = EmployeesOnlyImportService.ParseFullName("John Smith");
+
+        Assert.False(result.NeedsReview);
+        Assert.Equal("John", result.FirstName);
+        Assert.Equal("Smith", result.LastName);
+    }
+
+    [Fact]
+    public void ParseFullName_ParsesLastCommaFirst()
+    {
+        var result = EmployeesOnlyImportService.ParseFullName("Smith, John");
+
+        Assert.False(result.NeedsReview);
+        Assert.Equal("John", result.FirstName);
+        Assert.Equal("Smith", result.LastName);
+    }
+
+    [Fact]
+    public void ParseFullName_FlagsUncertainNamesForReview()
+    {
+        var result = EmployeesOnlyImportService.ParseFullName("John");
+
+        Assert.True(result.NeedsReview);
+    }
+
+    [Fact]
     public async Task ConfirmAsync_BlocksWhenValidationErrorsExist()
     {
         await using var context = CreateContext("employees_import_confirm_blocked");

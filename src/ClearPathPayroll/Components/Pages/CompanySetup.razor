@@ -35,7 +35,7 @@
 
     <!-- Compliance Disclaimer -->
     <div class="alert alert-info" role="alert">
-        <strong>Important Disclaimer:</strong> You are responsible for verifying all employer setup details are accurate and compliant with applicable state and federal regulations. This system does not provide legal, tax, financial, or compliance advice. Please consult with appropriate professionals (tax advisor, attorney, etc.) to ensure your company information meets all regulatory requirements.
+        <strong>Important Disclaimer:</strong> ClearPath Payroll stores user-entered employer setup details locally for demo review. It does not provide legal, tax, financial, accounting, payroll compliance, or licensed professional advice.
     </div>
 
     <!-- Loading State -->
@@ -72,7 +72,7 @@
                     <div class="mb-3">
                         <label for="fein" class="form-label">Federal Employer Identification Number (FEIN) <span class="text-danger">*</span></label>
                         <InputText id="fein" @bind-Value="feinInput" class="form-control" placeholder="XX-XXXXXXX" maxlength="10" />
-                        <small class="form-text text-muted">Format: 10 digits (e.g., 12-3456789). FEIN is sensitive data and is protected.</small>
+                        <small class="form-text text-muted">Example format: 12-3456789. This is user-entered tax ID data.</small>
                         <ValidationMessage For="@(() => company.FEIN)" class="text-danger" />
                     </div>
                 </div>
@@ -124,7 +124,7 @@
                     <!-- Phone -->
                     <div class="mb-3">
                         <label for="phone" class="form-label">Phone Number</label>
-                        <InputText id="phone" type="tel" @bind-Value="company.Phone" class="form-control" placeholder="(XXX) XXX-XXXX" />
+                        <InputText id="phone" type="tel" @bind-Value="company.Phone" class="form-control" placeholder="(XXX) XXX-XXXX" @onblur="FormatPhone" />
                         <ValidationMessage For="@(() => company.Phone)" class="text-danger" />
                     </div>
 
@@ -144,11 +144,11 @@
                 </div>
             </div>
 
-            <!-- Display Masked FEIN for Existing Company -->
-            @if (isEditMode && !string.IsNullOrEmpty(maskedFein))
+            <!-- Display Saved FEIN for Existing Company -->
+            @if (isEditMode && !string.IsNullOrEmpty(company.FEIN))
             {
                 <div class="alert alert-secondary mt-3" role="alert">
-                    <strong>Note:</strong> FEIN on file: <code>@maskedFein</code> (only last 4 digits shown for security)
+                    <strong>Saved FEIN:</strong> <code>@company.FEIN</code>
                 </div>
             }
 
@@ -179,7 +179,6 @@
 
     private Company company = new();
     private string feinInput = string.Empty;
-    private string maskedFein = string.Empty;
     private bool isEditMode = false;
     private bool isLoading = false;
     private bool isSubmitting = false;
@@ -210,12 +209,11 @@
 
         try
         {
-            var loadedCompany = await CompanyService.GetCompanyByIdAsync(CompanyId.Value);
+            var loadedCompany = await CompanyService.GetCompanyByIdAsync(CompanyId.GetValueOrDefault());
             if (loadedCompany != null)
             {
                 company = loadedCompany;
                 feinInput = company.FEIN;
-                maskedFein = MaskFEIN(company.FEIN);
             }
             else
             {
@@ -247,14 +245,13 @@
 
         try
         {
-            company.FEIN = feinInput.Replace("-", "").Trim();
+            company.FEIN = CompanyService.FormatFEIN(feinInput);
 
             if (isEditMode)
             {
                 var success = await CompanyService.UpdateCompanyAsync(company);
                 if (success)
                 {
-                    maskedFein = MaskFEIN(company.FEIN);
                     successMessage = $"Company '{company.LegalName}' has been updated successfully.";
                     await Task.Delay(1500); // Brief delay to show success message
                     NavigationManager.NavigateTo("/");
@@ -288,6 +285,14 @@
         NavigationManager.NavigateTo("/");
     }
 
+    private void FormatPhone()
+    {
+        if (PhoneNumberFormatter.TryFormat(company.Phone, out var formatted, out _))
+        {
+            company.Phone = formatted;
+        }
+    }
+
     private bool ValidateForm()
     {
         // Basic client-side validation before submission
@@ -303,11 +308,19 @@
             return false;
         }
 
-        if (feinInput.Replace("-", "").Length != 9)
+        if (new string(feinInput.Where(char.IsDigit).ToArray()).Length != 9)
         {
             errorMessage = "FEIN must be 9 digits.";
             return false;
         }
+
+        if (!PhoneNumberFormatter.TryFormat(company.Phone, out var formattedPhone, out var phoneError))
+        {
+            errorMessage = phoneError ?? "Phone number is invalid.";
+            return false;
+        }
+
+        company.Phone = formattedPhone;
 
         if (string.IsNullOrWhiteSpace(company.PrimaryAddress))
         {
@@ -334,18 +347,5 @@
         }
 
         return true;
-    }
-
-    private string MaskFEIN(string fein)
-    {
-        if (string.IsNullOrEmpty(fein) || fein.Length < 5)
-            return "XX-XX-****";
-
-        // Format: XX-XX-**** (show first 4 digits, mask last 5)
-        var digits = fein.Replace("-", "");
-        if (digits.Length < 9)
-            return "XX-XX-****";
-
-        return $"{digits.Substring(0, 2)}-{digits.Substring(2, 2)}-****";
     }
 }

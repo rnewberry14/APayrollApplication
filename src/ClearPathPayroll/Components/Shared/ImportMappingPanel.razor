@@ -1,0 +1,247 @@
+@using ClearPathPayroll.Services
+
+<div class="card mb-4">
+    <div class="card-header bg-light d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <span>@Title</span>
+        <span class="small text-muted">@MappedCount mapped, @UnmappedRequiredCount required unmapped</span>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-info">
+            Review suggested mappings before validating. Suggestions do not save or import data.
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(localMessage))
+        {
+            <div class="alert alert-secondary" role="status">@localMessage</div>
+        }
+
+        <div class="row g-3 mb-3">
+            <div class="col-lg-3">
+                <label class="form-label">Search source columns</label>
+                <input class="form-control" @bind="sourceFilter" @bind:event="oninput" />
+            </div>
+            <div class="col-lg-3">
+                <label class="form-label">Search target fields</label>
+                <input class="form-control" @bind="targetFilter" @bind:event="oninput" />
+            </div>
+            <div class="col-lg-3 d-flex align-items-end">
+                <label class="form-check">
+                    <input class="form-check-input" type="checkbox" @bind="showUnmappedOnly" />
+                    Show unmapped only
+                </label>
+            </div>
+            <div class="col-lg-3 d-flex align-items-end">
+                <label class="form-check">
+                    <input class="form-check-input" type="checkbox" @bind="showRequiredOnly" />
+                    Show required only
+                </label>
+            </div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2 mb-3">
+            <button type="button" class="btn btn-outline-primary btn-sm" @onclick="AutoMapSuggestedFields">Auto-map suggested fields</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="ClearAllMappings">Clear all mappings</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="SaveMappingTemplatePlaceholder">Save mapping template</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="LoadMappingTemplatePlaceholder">Load mapping template</button>
+        </div>
+
+        <div class="row">
+            <div class="col-xl-9">
+                @foreach (var mappingSection in Sections)
+                {
+                    var fields = FilteredMappings(mappingSection).ToList();
+                    if (fields.Count == 0)
+                    {
+                        continue;
+                    }
+
+                    <section class="mb-4">
+                        <h3 class="h6 border-bottom pb-2">@mappingSection</h3>
+                        <div class="row g-3">
+                            @foreach (var mapping in fields)
+                            {
+                                <div class="col-lg-6">
+                                    <div class="border rounded p-3 h-100">
+                                        <div class="fw-semibold text-break">@mapping.SourceColumn</div>
+                                        <label class="form-label small mt-2">Target field</label>
+                                        <select class="form-select form-select-sm" @bind="mapping.TargetField">
+                                            <option value="">Do not import</option>
+                                            @foreach (var field in FilteredTargetFields)
+                                            {
+                                                <option value="@field">@field</option>
+                                            }
+                                        </select>
+                                        <label class="form-check mt-2">
+                                            <input class="form-check-input" type="checkbox" @bind="mapping.IsRequired" />
+                                            Required by mapping
+                                        </label>
+                                        @if (IsRequiredTarget(mapping.TargetField))
+                                        {
+                                            <div class="small text-danger">Required field</div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </section>
+                }
+            </div>
+
+            <aside class="col-xl-3">
+                <div class="border rounded p-3 sticky-summary">
+                    <h3 class="h6">Mapping Summary</h3>
+                    <dl class="small mb-3">
+                        <dt>Source columns</dt>
+                        <dd>@Mappings.Count</dd>
+                        <dt>Mapped fields</dt>
+                        <dd>@MappedCount</dd>
+                        <dt>Required unmapped</dt>
+                        <dd>@UnmappedRequiredCount</dd>
+                    </dl>
+                    @if (UnmappedRequiredCount > 0)
+                    {
+                        <div class="alert alert-warning py-2 small">
+                            Required fields are not mapped. Review before leaving this page.
+                        </div>
+                    }
+                    <button class="btn btn-primary w-100" @onclick="OnValidate" disabled="@(IsWorking || UnmappedRequiredCount > 0)">
+                        @ValidateButtonText
+                    </button>
+                </div>
+            </aside>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = "Map Columns";
+    [Parameter, EditorRequired] public List<ImportMappingInput> Mappings { get; set; } = new();
+    [Parameter, EditorRequired] public IReadOnlyList<string> TargetFields { get; set; } = Array.Empty<string>();
+    [Parameter] public IReadOnlyList<string> RequiredTargetFields { get; set; } = Array.Empty<string>();
+    [Parameter] public bool IsWorking { get; set; }
+    [Parameter] public string ValidateButtonText { get; set; } = "Validate Rows";
+    [Parameter] public EventCallback OnValidate { get; set; }
+
+    private string sourceFilter = string.Empty;
+    private string targetFilter = string.Empty;
+    private bool showUnmappedOnly;
+    private bool showRequiredOnly;
+    private string localMessage = string.Empty;
+
+    private string[] Sections => new[]
+    {
+        "Employer fields",
+        "Employee identity fields",
+        "Employee demographic fields",
+        "Pay fields",
+        "Tax fields",
+        "Direct deposit fields",
+        "Check fields",
+        "Tax deposit fields",
+        "Optional/user-defined fields"
+    };
+
+    private int MappedCount => Mappings.Count(mapping => !string.IsNullOrWhiteSpace(mapping.TargetField));
+    private int UnmappedRequiredCount => ImportFieldAliasMatcher.CountUnmappedRequiredFields(RequiredTargetFields, Mappings);
+
+    private IEnumerable<string> FilteredTargetFields => TargetFields
+        .Where(field => string.IsNullOrWhiteSpace(targetFilter) || field.Contains(targetFilter, StringComparison.OrdinalIgnoreCase))
+        .OrderBy(field => field);
+
+    private IEnumerable<ImportMappingInput> FilteredMappings(string section)
+    {
+        return Mappings
+            .Where(mapping => GetSection(mapping) == section)
+            .Where(mapping => string.IsNullOrWhiteSpace(sourceFilter) || mapping.SourceColumn.Contains(sourceFilter, StringComparison.OrdinalIgnoreCase))
+            .Where(mapping => !showUnmappedOnly || string.IsNullOrWhiteSpace(mapping.TargetField))
+            .Where(mapping => !showRequiredOnly || mapping.IsRequired || IsRequiredTarget(mapping.TargetField));
+    }
+
+    private void AutoMapSuggestedFields()
+    {
+        foreach (var mapping in Mappings)
+        {
+            mapping.TargetField = ImportFieldAliasMatcher.SuggestTargetField(mapping.SourceColumn, TargetFields);
+            mapping.IsRequired = IsRequiredTarget(mapping.TargetField);
+        }
+
+        localMessage = "Suggested mappings applied for review. Confirm mappings before validating rows.";
+    }
+
+    private void ClearAllMappings()
+    {
+        foreach (var mapping in Mappings)
+        {
+            mapping.TargetField = string.Empty;
+            mapping.IsRequired = false;
+        }
+
+        localMessage = "All mappings cleared.";
+    }
+
+    private void SaveMappingTemplatePlaceholder()
+    {
+        localMessage = "Mapping template save is a placeholder for testing. No template was saved.";
+    }
+
+    private void LoadMappingTemplatePlaceholder()
+    {
+        localMessage = "Mapping template load is a placeholder for testing. No template was loaded.";
+    }
+
+    private bool IsRequiredTarget(string? targetField)
+    {
+        return !string.IsNullOrWhiteSpace(targetField)
+            && RequiredTargetFields.Contains(targetField, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private string GetSection(ImportMappingInput mapping)
+    {
+        var target = mapping.TargetField;
+        var source = mapping.SourceColumn;
+        var probe = string.IsNullOrWhiteSpace(target) ? source : target;
+        var normalized = ImportFieldAliasMatcher.Normalize(probe);
+
+        if (normalized.Contains("COMPANY") || normalized.Contains("EMPLOYER") || normalized.Contains("FEIN") || normalized.Contains("EIN"))
+        {
+            return "Employer fields";
+        }
+
+        if (normalized.Contains("EMPLOYEENUMBER") || normalized.Contains("EMPLOYEEIDENTIFIER") || normalized.Contains("FIRSTNAME") || normalized.Contains("LASTNAME") || normalized.Contains("SSN"))
+        {
+            return "Employee identity fields";
+        }
+
+        if (normalized.Contains("ADDRESS") || normalized.Contains("CITY") || normalized.Contains("STATE") || normalized.Contains("ZIP") || normalized.Contains("PHONE") || normalized.Contains("EMAIL") || normalized.Contains("DATEOFBIRTH") || normalized.Contains("HIREDATE"))
+        {
+            return "Employee demographic fields";
+        }
+
+        if (normalized.Contains("PAYTYPE") || normalized.Contains("RATE") || normalized.Contains("SALARY") || normalized.Contains("HOURS") || normalized.Contains("GROSS") || normalized.Contains("NET") || normalized.Contains("DEDUCTION"))
+        {
+            return "Pay fields";
+        }
+
+        if (normalized.Contains("TAX") || normalized.Contains("FILING") || normalized.Contains("MEDICARE") || normalized.Contains("SOCIALSECURITY"))
+        {
+            return "Tax fields";
+        }
+
+        if (normalized.Contains("DIRECTDEPOSIT") || normalized.Contains("BANK") || normalized.Contains("ACCOUNT") || normalized.Contains("ROUTING"))
+        {
+            return "Direct deposit fields";
+        }
+
+        if (normalized.Contains("CHECK") || normalized.Contains("PAYDATE") || normalized.Contains("PAYPERIOD") || normalized.Contains("PAYMENTMETHOD"))
+        {
+            return "Check fields";
+        }
+
+        if (normalized.Contains("DEPOSIT") || normalized.Contains("AGENCY") || normalized.Contains("CONFIRMATION"))
+        {
+            return "Tax deposit fields";
+        }
+
+        return "Optional/user-defined fields";
+    }
+}

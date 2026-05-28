@@ -1,0 +1,8 @@
+.sticky-summary {
+    position: sticky;
+    top: 4.5rem;
+}
+
+.text-break {
+    overflow-wrap: anywhere;
+}

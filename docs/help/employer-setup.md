@@ -2,44 +2,38 @@
 
 ClearPath Payroll provides local software tools for entering employer payroll setup data and payroll items. It does not provide legal, tax, financial, accounting, or payroll compliance advice.
 
-## Who Can Use It
-
-Use this page from a local prototype or private deployment with access to employer payroll setup records.
-
 ## What It Does
 
 - Stores employer contact and address details in the local database.
-- Stores FEIN values and displays a masked FEIN after save.
-- Stores employer tax setup placeholders, including user-entered rate fields.
-- Stores payroll items for earnings, deductions, taxes, reimbursements, and memo-only records.
+- Stores user-entered FEIN, SUIN, and SEIN values without replacing them with demo placeholders.
+- Formats employer phone numbers as `(123) 456-7890` when 10 digits are entered.
+- Stores user-entered employer rate fields with 4 decimal places.
+- Stores SUTA state as a two-letter abbreviation selected from a state list.
+- Stores Filing Frequency / Depositor Type as a user-selected value.
 - Does not call tax APIs, submit ACH, or submit tax filings.
 
 ## Steps
 
-1. Open **Setup > Employer**.
-2. Select **Add New Employer**.
-3. Enter legal name, optional DBA, FEIN, contact, address, county, local tax locality placeholder, and active status.
-4. Select **Save**.
-5. Open **Setup > Payroll Settings**.
-6. Select the company.
-7. Enter employer tax setup placeholders and user-entered rate values.
-8. Select **Save Payroll Settings**.
-9. Select **Add New Payroll Item**.
-10. Enter item code, name, type, calculation type, defaults, tax flags, dates, and notes.
-11. Select **Save Item**.
-
-## Required Permissions
-
-Local application access with permission to edit employer setup records.
+1. Open **Payer/Employer > New/Add** or **Payer/Employer > Edit**.
+2. Enter employer name, FEIN, contact, phone, address, and active status.
+3. Select **Save**.
+4. Open **Payer/Employer > Payroll Settings**.
+5. Select the employer.
+6. Enter SUIN and SEIN if used by the tester scenario.
+7. Select the SUTA state.
+8. Enter FUTA, SUTA, and local employer tax rates as percent values.
+9. Select Filing Frequency / Depositor Type.
+10. Add optional notes.
+11. Select **Save Payroll Settings**.
 
 ## Common Errors
 
-- Missing required employer fields.
-- Invalid email or state length.
-- Plain account numbers entered in placeholder fields.
-- Payroll item end date earlier than effective date.
-- Duplicate payroll item code for the same company.
+- Phone number has digits but not exactly 10 digits.
+- Rate field contains non-numeric text.
+- Rate is outside 0 through 100.
+- Required employer fields are blank.
+- Plain bank account numbers are entered into placeholder account fields.
 
 ## Cautions
 
-Verify with official agency records. Account numbers are masked where displayed. Do not enter full bank account numbers, routing numbers, or unrelated sensitive data into placeholder fields.
+User-entered rate. Verify with official agency records. Do not enter real payroll data in the local demo package.

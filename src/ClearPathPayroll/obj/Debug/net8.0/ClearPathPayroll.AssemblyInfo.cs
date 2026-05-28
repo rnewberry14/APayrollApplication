@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ClearPathPayroll")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+f3851da664d9f59603941132f43f3b4f8b2d83c2")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+0d79c987cb9489fa60c5f4f6e7c00d7203d9d6e1")]
 [assembly: System.Reflection.AssemblyProductAttribute("ClearPathPayroll")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ClearPathPayroll")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

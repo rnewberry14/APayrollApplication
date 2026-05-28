@@ -80,6 +80,10 @@ build_metadata.AdditionalFiles.CssScope =
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xJbXBvcnREYXRhLnJhem9y
 build_metadata.AdditionalFiles.CssScope = 
 
+[D:/Richard/Git Repos/ClearPathPayroll/src/ClearPathPayroll/Components/Pages/NavigationPlaceholder.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xOYXZpZ2F0aW9uUGxhY2Vob2xkZXIucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
 [D:/Richard/Git Repos/ClearPathPayroll/src/ClearPathPayroll/Components/Pages/OfficialSources.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xPZmZpY2lhbFNvdXJjZXMucmF6b3I=
 build_metadata.AdditionalFiles.CssScope = 
@@ -148,6 +152,10 @@ build_metadata.AdditionalFiles.CssScope =
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xSb3V0ZXMucmF6b3I=
 build_metadata.AdditionalFiles.CssScope = 
 
+[D:/Richard/Git Repos/ClearPathPayroll/src/ClearPathPayroll/Components/Shared/ImportProgress.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xTaGFyZWRcSW1wb3J0UHJvZ3Jlc3MucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
 [D:/Richard/Git Repos/ClearPathPayroll/src/ClearPathPayroll/Components/Shared/NoAdviceDisclaimer.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xTaGFyZWRcTm9BZHZpY2VEaXNjbGFpbWVyLnJhem9y
 build_metadata.AdditionalFiles.CssScope = 
@@ -163,3 +171,7 @@ build_metadata.AdditionalFiles.CssScope = b-7qyn7xt25y
 [D:/Richard/Git Repos/ClearPathPayroll/src/ClearPathPayroll/Components/Layout/NavMenu.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xMYXlvdXRcTmF2TWVudS5yYXpvcg==
 build_metadata.AdditionalFiles.CssScope = b-i1wff8wgqx
+
+[D:/Richard/Git Repos/ClearPathPayroll/src/ClearPathPayroll/Components/Shared/ImportMappingPanel.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xTaGFyZWRcSW1wb3J0TWFwcGluZ1BhbmVsLnJhem9y
+build_metadata.AdditionalFiles.CssScope = b-dflrqxoopg

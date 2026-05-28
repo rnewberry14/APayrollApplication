@@ -55,6 +55,7 @@ public class CompanyService
     /// </summary>
     public async Task<Company> CreateCompanyAsync(Company company)
     {
+        NormalizeEmployerFields(company);
         ValidateCompany(company);
         company.CreatedAt = DateTime.UtcNow;
         _context.Companies.Add(company);
@@ -67,6 +68,7 @@ public class CompanyService
     /// </summary>
     public async Task<bool> UpdateCompanyAsync(Company company)
     {
+        NormalizeEmployerFields(company);
         ValidateCompany(company);
         company.UpdatedAt = DateTime.UtcNow;
         _context.Companies.Update(company);
@@ -75,6 +77,7 @@ public class CompanyService
 
     public async Task<Company> SaveEmployerSetupAsync(Company company)
     {
+        NormalizeEmployerFields(company);
         ValidateCompany(company);
 
         if (company.CompanyId == 0)
@@ -90,6 +93,21 @@ public class CompanyService
 
         await _context.SaveChangesAsync();
         return company;
+    }
+
+    public static string FormatFEIN(string? fein)
+    {
+        if (string.IsNullOrWhiteSpace(fein))
+        {
+            return string.Empty;
+        }
+
+        var trimmed = fein.Trim().Replace(" ", string.Empty);
+        var digits = new string(trimmed.Where(char.IsDigit).ToArray());
+
+        return digits.Length == 9
+            ? $"{digits[..2]}-{digits[2..]}"
+            : trimmed;
     }
 
     /// <summary>
@@ -151,5 +169,40 @@ public class CompanyService
         {
             throw new ValidationException(results[0].ErrorMessage);
         }
+    }
+
+    private static void NormalizeEmployerFields(Company company)
+    {
+        company.FEIN = FormatFEIN(company.FEIN);
+        company.SUIN = NormalizeIdentifier(company.SUIN);
+        company.SEIN = NormalizeIdentifier(company.SEIN);
+        company.SutaEmployerAccountNumberPlaceholder = NormalizeIdentifier(company.SutaEmployerAccountNumberPlaceholder);
+        company.StateWithholdingAccountNumberPlaceholder = NormalizeIdentifier(company.StateWithholdingAccountNumberPlaceholder);
+        company.LocalTaxAccountNumberPlaceholder = NormalizeIdentifier(company.LocalTaxAccountNumberPlaceholder);
+        company.SutaState = NormalizeState(company.SutaState);
+
+        if (PhoneNumberFormatter.TryFormat(company.Phone, out var formattedPhone, out _))
+        {
+            company.Phone = formattedPhone;
+        }
+
+        company.FutaRatePlaceholder = NormalizeRate(company.FutaRatePlaceholder);
+        company.SutaRate = NormalizeRate(company.SutaRate);
+        company.LocalEmployerTaxRate = NormalizeRate(company.LocalEmployerTaxRate);
+    }
+
+    private static string? NormalizeIdentifier(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private static string? NormalizeState(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToUpperInvariant();
+    }
+
+    private static decimal? NormalizeRate(decimal? value)
+    {
+        return value.HasValue ? Math.Round(value.Value, 4, MidpointRounding.AwayFromZero) : null;
     }
 }

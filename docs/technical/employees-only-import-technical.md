@@ -15,7 +15,9 @@ ClearPath Payroll provides software tools for payroll calculation, reporting, an
 
 The service validates:
 
-- Required mappings for `FirstName`, `LastName`, and `PayType`.
+- Required mapping for `PayType`.
+- Employee name mapping using either `FirstName` plus `LastName`, or `FullName`.
+- Conservative `FullName` parsing for common name formats.
 - Either `SSNLast4` or `EmployeeNumber`.
 - `SSNLast4` format when mapped.
 - `DirectDepositLast4` format when mapped.

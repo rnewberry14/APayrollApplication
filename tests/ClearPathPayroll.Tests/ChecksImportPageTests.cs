@@ -29,12 +29,17 @@ public class ChecksImportPageTests
 
         Assert.Contains("@page \"/import/checks\"", content);
         Assert.Contains("@page \"/import/employees-and-checks\"", content);
+        Assert.Contains("@page \"/imports/paychecks\"", content);
+        Assert.Contains("@page \"/imports/employees-checks\"", content);
         Assert.Contains("<NoAdviceDisclaimer />", content);
+        Assert.Contains("<ImportProgress", content);
+        Assert.Contains("<ImportMappingPanel", content);
         Assert.Contains("does not submit ACH", content);
         Assert.Contains("file taxes", content);
         Assert.Contains("Imported data is user-provided", content);
         Assert.Contains("Validate Checks", content);
         Assert.Contains("Save Draft Payroll Runs", content);
+        Assert.Contains("/imports/employees-checks", content);
     }
 
     [Fact]

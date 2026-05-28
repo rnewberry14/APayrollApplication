@@ -1,0 +1,64 @@
+@using ClearPathPayroll.Services
+
+<div class="card mb-4 import-progress-card">
+    <div class="card-header bg-light d-flex flex-wrap justify-content-between gap-2">
+        <span>Import Progress</span>
+        <span class="badge @BadgeClass">@Progress.StatusLabel</span>
+    </div>
+    <div class="card-body">
+        <div class="d-flex align-items-center gap-2 mb-2">
+            @if (Progress.IsWorking)
+            {
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+            }
+            <strong>@StageLabel</strong>
+            <span class="text-muted">@Progress.Message</span>
+        </div>
+
+        <div class="progress mb-3" role="progressbar" aria-valuenow="@Progress.PercentComplete" aria-valuemin="0" aria-valuemax="100">
+            <div class="progress-bar @ProgressBarClass" style="width: @Progress.PercentComplete%"></div>
+        </div>
+
+        <div class="row small text-muted">
+            <div class="col-sm-4">Rows: @(Progress.RowCount?.ToString() ?? "Not available")</div>
+            <div class="col-sm-4">Warnings: @Progress.WarningCount</div>
+            <div class="col-sm-4">Errors: @Progress.ErrorCount</div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public ImportProgressModel Progress { get; set; } = new();
+
+    private string StageLabel => Progress.Stage switch
+    {
+        ImportProgressStage.WaitingForFile => "Waiting for file",
+        ImportProgressStage.ReadingFile => "Reading file",
+        ImportProgressStage.ParsingRows => "Parsing rows",
+        ImportProgressStage.DetectingColumns => "Detecting columns",
+        ImportProgressStage.MappingColumns => "Mapping columns",
+        ImportProgressStage.ValidatingRows => "Validating rows",
+        ImportProgressStage.PreviewReady => "Preview ready",
+        ImportProgressStage.SavingImport => "Saving import",
+        ImportProgressStage.Complete => "Complete",
+        ImportProgressStage.Failed => "Failed",
+        _ => Progress.Stage.ToString()
+    };
+
+    private string BadgeClass => Progress.StatusLabel switch
+    {
+        "Complete" => "text-bg-success",
+        "Failed" => "text-bg-danger",
+        "Working" => "text-bg-primary",
+        "Needs review" => "text-bg-warning",
+        _ => "text-bg-secondary"
+    };
+
+    private string ProgressBarClass => Progress.Stage switch
+    {
+        ImportProgressStage.Failed => "bg-danger",
+        ImportProgressStage.Complete => "bg-success",
+        _ => string.Empty
+    };
+}

@@ -10,8 +10,7 @@ This workflow is for local payroll administrators and prototype testers who need
 
 ## Required Columns
 
-- `FirstName`
-- `LastName`
+- `FirstName` and `LastName`, or `FullName`
 - `PayType`
 - Either `SSNLast4` or `EmployeeNumber`
 
@@ -20,6 +19,7 @@ Hourly employees also need `HourlyRate`. Salary employees also need `AnnualSalar
 ## Optional Columns
 
 - `MiddleInitial`
+- `FullName`
 - `Address1`
 - `Address2`
 - `City`

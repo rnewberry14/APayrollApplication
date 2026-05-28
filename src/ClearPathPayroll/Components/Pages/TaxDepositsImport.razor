@@ -1,4 +1,5 @@
 @page "/import/tax-deposits"
+@page "/imports/tax-deposits"
 @using ClearPathPayroll.Services
 @inject TaxDepositsImportService DepositImportService
 
@@ -35,6 +36,8 @@
         <div class="alert @statusClass" role="status">@statusMessage</div>
     }
 
+    <ImportProgress Progress="progress" />
+
     <div class="card mb-4">
         <div class="card-header bg-light">1. Select Local File</div>
         <div class="card-body">
@@ -61,47 +64,13 @@
 
     @if (parseResult != null)
     {
-        <div class="card mb-4">
-            <div class="card-header bg-light">2. Map Columns</div>
-            <div class="card-body">
-                @foreach (var warning in parseResult.Warnings)
-                {
-                    <div class="alert alert-warning">@warning</div>
-                }
-
-                <div class="table-responsive">
-                    <table class="table table-sm align-middle">
-                        <thead>
-                            <tr>
-                                <th>Source column</th>
-                                <th>Tax deposit field</th>
-                                <th>Required by mapping</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var mapping in mappingInputs)
-                            {
-                                <tr>
-                                    <td>@mapping.SourceColumn</td>
-                                    <td>
-                                        <select class="form-select form-select-sm" @bind="mapping.TargetField">
-                                            <option value="">Do not import</option>
-                                            @foreach (var field in TaxDepositsImportService.AllTargetFields)
-                                            {
-                                                <option value="@field">@field</option>
-                                            }
-                                        </select>
-                                    </td>
-                                    <td><input class="form-check-input" type="checkbox" @bind="mapping.IsRequired" /></td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-
-                <button class="btn btn-primary" @onclick="ValidateDeposits" disabled="@isWorking">Validate Tax Deposits</button>
-            </div>
-        </div>
+        <ImportMappingPanel Title="2. Map Columns"
+                            Mappings="mappingInputs"
+                            TargetFields="TaxDepositsImportService.AllTargetFields"
+                            RequiredTargetFields="TaxDepositsImportService.RequiredTargetFields"
+                            IsWorking="isWorking"
+                            ValidateButtonText="Validate Tax Deposits"
+                            OnValidate="ValidateDeposits" />
 
         <div class="card mb-4">
             <div class="card-header bg-light">3. Preview Before Saving</div>
@@ -152,14 +121,14 @@
                     <ul>
                         @foreach (var error in validationResult.Batch.Errors.OrderBy(error => error.RowNumber).ThenBy(error => error.ErrorCode).Take(50))
                         {
-                            <li>Row @(error.RowNumber?.ToString() ?? "batch"): @error.Message</li>
+                            <li>Row @(error.RowNumber?.ToString() ?? "batch"): @ImportFieldAliasMatcher.SanitizeErrorMessage(error.Message)</li>
                         }
                     </ul>
                 }
                 else
                 {
                     <div class="alert alert-success">Validation completed. Tax deposit records are ready to save locally.</div>
-                    <button class="btn btn-success" @onclick="ConfirmDeposits" disabled="@isWorking">Save User-Entered Deposit Records</button>
+                    <button class="btn btn-success" @onclick="ConfirmDeposits" disabled="@(isWorking || progress.IsWorking)">Save User-Entered Deposit Records</button>
                 }
             </div>
         </div>
@@ -175,6 +144,7 @@
     private string statusClass = "alert-info";
     private bool reviewAcknowledged;
     private bool isWorking;
+    private ImportProgressModel progress = new();
 
     private async Task OnFileSelected(InputFileChangeEventArgs args)
     {
@@ -185,11 +155,14 @@
         try
         {
             isWorking = true;
+            progress.MoveTo(ImportProgressStage.ReadingFile, "Reading the selected tax deposit file.");
             await using var stream = args.File.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+            progress.MoveTo(ImportProgressStage.ParsingRows, "Parsing tax deposit rows locally.");
             parseResult = await DepositImportService.ParseFileAsync(stream, args.File.Name);
+            progress.MoveTo(ImportProgressStage.DetectingColumns, "Detecting tax deposit columns.", parseResult.Rows.Count, parseResult.Warnings.Count, 0);
             mappingInputs = parseResult.Columns.Select(column =>
             {
-                var target = GuessDepositField(column);
+                var target = ImportFieldAliasMatcher.SuggestTargetField(column, TaxDepositsImportService.AllTargetFields);
                 return new ImportMappingInput
                 {
                     SourceColumn = column,
@@ -197,6 +170,7 @@
                     IsRequired = TaxDepositsImportService.RequiredTargetFields.Contains(target, StringComparer.OrdinalIgnoreCase)
                 };
             }).ToList();
+            progress.MoveTo(ImportProgressStage.MappingColumns, "Review suggested tax deposit mappings.", parseResult.Rows.Count, parseResult.Warnings.Count, 0);
             statusClass = "alert-success";
             statusMessage = "Tax deposit file parsed locally. Review mappings and preview before validation.";
         }
@@ -205,7 +179,8 @@
             parseResult = null;
             mappingInputs.Clear();
             statusClass = "alert-danger";
-            statusMessage = $"Unable to parse tax deposit file: {ex.Message}";
+            statusMessage = $"Unable to parse tax deposit file: {ImportFieldAliasMatcher.SanitizeErrorMessage(ex.Message)}";
+            progress.MoveTo(ImportProgressStage.Failed, "The tax deposit file could not be parsed locally.", errorCount: 1);
         }
         finally
         {
@@ -225,6 +200,7 @@
         try
         {
             isWorking = true;
+            progress.MoveTo(ImportProgressStage.ValidatingRows, "Validating tax deposit rows locally.", parseResult.Rows.Count);
             validationResult = await DepositImportService.ValidateAsync(
                 selectedFileName,
                 parseResult,
@@ -234,11 +210,17 @@
             statusMessage = validationResult.CanImport
                 ? "Tax deposits validated locally. Save records after review."
                 : "Tax deposit validation found blocking errors.";
+            progress.MoveTo(validationResult.CanImport ? ImportProgressStage.PreviewReady : ImportProgressStage.Failed,
+                validationResult.CanImport ? "Preview is ready for final review." : "Validation found tax deposit errors.",
+                validationResult.Batch.RowCount,
+                0,
+                validationResult.Batch.ErrorCount);
         }
         catch (Exception ex)
         {
             statusClass = "alert-danger";
-            statusMessage = $"Unable to validate tax deposits: {ex.Message}";
+            statusMessage = $"Unable to validate tax deposits: {ImportFieldAliasMatcher.SanitizeErrorMessage(ex.Message)}";
+            progress.MoveTo(ImportProgressStage.Failed, "Tax deposit validation failed with a safe summary message.", errorCount: 1);
         }
         finally
         {
@@ -258,15 +240,18 @@
         try
         {
             isWorking = true;
+            progress.MoveTo(ImportProgressStage.SavingImport, "Saving user-entered deposit records locally.", validationResult.Batch.RowCount, 0, validationResult.Batch.ErrorCount);
             var result = await DepositImportService.ConfirmAsync(validationResult.Batch.ImportBatchId);
             validationResult = new TaxDepositsImportValidationResult { Batch = result.Batch };
             statusClass = "alert-success";
             statusMessage = $"{result.ImportedDepositCount} user-entered deposit record(s) saved locally.";
+            progress.MoveTo(ImportProgressStage.Complete, "Tax deposit import saved locally.", result.Batch.RowCount, 0, 0);
         }
         catch (Exception ex)
         {
             statusClass = "alert-danger";
-            statusMessage = $"Unable to save tax deposit records: {ex.Message}";
+            statusMessage = $"Unable to save tax deposit records: {ImportFieldAliasMatcher.SanitizeErrorMessage(ex.Message)}";
+            progress.MoveTo(ImportProgressStage.Failed, "Saving tax deposit import failed.", errorCount: 1);
         }
         finally
         {
@@ -277,17 +262,6 @@
     private static string GetCell(Dictionary<string, string> row, string column)
     {
         return row.TryGetValue(column, out var value) ? value : string.Empty;
-    }
-
-    private static string GuessDepositField(string column)
-    {
-        var normalized = column.Replace(" ", string.Empty, StringComparison.OrdinalIgnoreCase)
-            .Replace("_", string.Empty, StringComparison.OrdinalIgnoreCase)
-            .Replace("-", string.Empty, StringComparison.OrdinalIgnoreCase);
-
-        return TaxDepositsImportService.AllTargetFields.FirstOrDefault(field =>
-            string.Equals(field, normalized, StringComparison.OrdinalIgnoreCase))
-            ?? string.Empty;
     }
 
     private void ResetStatus()
