@@ -5,6 +5,7 @@ using ClearPathPayroll.Configuration;
 using ClearPathPayroll.Data;
 using ClearPathPayroll.Integrations;
 using ClearPathPayroll.Services;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Hosting;
@@ -13,6 +14,10 @@ using System.Net.Http.Headers;
 using System.Reflection;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+builder.Logging.AddDebug();
 
 if (builder.Environment.IsDevelopment())
 {
@@ -99,10 +104,32 @@ builder.Services.AddOptions<LimitedLiabilityModeOptions>()
 
 var prototypeOptions = builder.Configuration.GetSection("PrototypeMode").Get<PrototypeModeOptions>() ?? new PrototypeModeOptions();
 var localPrototypeEnabled = PrototypeModeHelper.ShouldUseLocalPrototypeMode(builder.Environment, prototypeOptions);
+var limitedLiabilityOptions = builder.Configuration.GetSection("LimitedLiabilityMode").Get<LimitedLiabilityModeOptions>() ?? new LimitedLiabilityModeOptions();
+var localOnlyEnabled = LimitedLiabilityModeHelper.ShouldUseLocalOnlyMode(builder.Environment, limitedLiabilityOptions, localPrototypeEnabled);
+var useSqliteLocalDatabase = localOnlyEnabled && LimitedLiabilityModeHelper.IsSqlite(limitedLiabilityOptions.LocalDatabaseProvider);
 var localPrototypeConnectionString = string.Empty;
+var resetDemoData = args.Any(arg => string.Equals(arg, "--reset-demo-data", StringComparison.OrdinalIgnoreCase));
+
+LimitedLiabilityModeHelper.ValidateStartupSafety(limitedLiabilityOptions, localDemoMode: localOnlyEnabled);
+
+if (localOnlyEnabled)
+{
+    var dataProtectionDirectory = Path.Combine(builder.Environment.ContentRootPath, "App_Data", "DataProtectionKeys");
+    Directory.CreateDirectory(dataProtectionDirectory);
+
+    builder.Services.AddDataProtection()
+        .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionDirectory))
+        .SetApplicationName("ClearPathPayroll.LocalDemo");
+}
 
 // Add DbContext
-if (localPrototypeEnabled)
+if (useSqliteLocalDatabase)
+{
+    var sqliteConnectionString = LimitedLiabilityModeHelper.GetSqliteConnectionString(builder.Environment, limitedLiabilityOptions.LocalDatabaseName);
+    builder.Services.AddDbContext<PayrollDbContext>(options =>
+        options.UseSqlite(sqliteConnectionString));
+}
+else if (localPrototypeEnabled)
 {
     localPrototypeConnectionString = PrototypeModeHelper.GetLocalDbConnectionString(prototypeOptions.LocalDbDatabaseName);
     builder.Services.AddDbContext<PayrollDbContext>(options =>
@@ -166,6 +193,33 @@ builder.Services.AddScoped<W2PdfImportService>();
 
 var app = builder.Build();
 
+if (localOnlyEnabled)
+{
+    using var scope = app.Services.CreateScope();
+    var context = scope.ServiceProvider.GetRequiredService<PayrollDbContext>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    var databaseName = useSqliteLocalDatabase ? limitedLiabilityOptions.LocalDatabaseName : prototypeOptions.LocalDbDatabaseName;
+
+    if (resetDemoData)
+    {
+        logger.LogInformation("Resetting local demo database '{DatabaseName}'.", databaseName);
+        await context.Database.EnsureDeletedAsync();
+        logger.LogInformation("Local demo database reset complete.");
+        return;
+    }
+
+    if (useSqliteLocalDatabase)
+    {
+        logger.LogInformation("Creating local SQLite demo database '{DatabaseName}' if needed.", databaseName);
+        await context.Database.EnsureCreatedAsync();
+    }
+    else
+    {
+        logger.LogInformation("Applying local demo database migrations for '{DatabaseName}'.", databaseName);
+        await context.Database.MigrateAsync();
+    }
+}
+
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
@@ -174,7 +228,10 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+if (!localOnlyEnabled)
+{
+    app.UseHttpsRedirection();
+}
 
 app.UseStaticFiles();
 app.UseAntiforgery();

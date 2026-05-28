@@ -73,11 +73,21 @@ public class TesterPackagingTests
 
         Assert.Contains("ClearPathPayroll.exe", start);
         Assert.Contains("ASPNETCORE_URLS=http://localhost:5080", start);
+        Assert.Contains("DOTNET_ENVIRONMENT=Development", start);
+        Assert.Contains("PrototypeMode__LocalDbDatabaseName=ClearPathPayroll.TesterPackage.LocalDemo", start);
+        Assert.Contains("LimitedLiabilityMode__LocalDatabaseProvider=SQLite", start);
+        Assert.Contains("ClearPathPayroll-startup.log", start);
+        Assert.Contains("Invoke-WebRequest", start);
+        Assert.Contains("/D \"%~dp0\"", start);
         Assert.Contains("Tester package only", start);
         Assert.Contains("start \"\" \"http://localhost:5080\"", start);
 
         Assert.Contains("choice /C YN", reset);
         Assert.Contains("App_Data\\*.db", reset);
+        Assert.Contains("--reset-demo-data", reset);
+        Assert.Contains("DOTNET_ENVIRONMENT=Development", reset);
+        Assert.Contains("PrototypeMode__LocalDbDatabaseName=ClearPathPayroll.TesterPackage.LocalDemo", reset);
+        Assert.Contains("LimitedLiabilityMode__LocalDatabaseProvider=SQLite", reset);
         Assert.Contains("It does not delete files outside this folder.", reset);
         Assert.DoesNotContain("rmdir /s", reset, StringComparison.OrdinalIgnoreCase);
 
@@ -88,6 +98,34 @@ public class TesterPackagingTests
         Assert.Contains("Windows Security Warning", troubleshooting);
         Assert.Contains("What Not To Send", troubleshooting);
         Assert.Contains("API keys", troubleshooting);
+    }
+
+    [Fact]
+    public void HomePage_ProvidesNoviceStartPathAndSafetyWarning()
+    {
+        var content = File.ReadAllText(RepoPath("src", "ClearPathPayroll", "Components", "Pages", "Home.razor"));
+
+        Assert.Contains("ClearPath Payroll Local Demo", content);
+        Assert.Contains("Local demo only", content);
+        Assert.Contains("/help?article=getting-started-local-demo", content);
+        Assert.Contains("/demo/seed-data", content);
+        Assert.Contains("/prototype-test-checklist", content);
+        Assert.DoesNotContain("Features coming soon", content);
+    }
+
+    [Fact]
+    public void Program_AppliesLocalDemoMigrationsAndSupportsResetArgument()
+    {
+        var content = File.ReadAllText(RepoPath("src", "ClearPathPayroll", "Program.cs"));
+
+        Assert.Contains("--reset-demo-data", content);
+        Assert.Contains("EnsureDeletedAsync", content);
+        Assert.Contains("MigrateAsync", content);
+        Assert.Contains("EnsureCreatedAsync", content);
+        Assert.Contains("UseSqlite", content);
+        Assert.Contains("ClearProviders", content);
+        Assert.Contains("PersistKeysToFileSystem", content);
+        Assert.Contains("!localOnlyEnabled", content);
     }
 
     [Fact]

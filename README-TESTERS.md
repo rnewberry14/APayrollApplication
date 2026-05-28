@@ -43,6 +43,8 @@ If the browser does not open, manually open your browser and go to:
 http://localhost:5080
 ```
 
+If the launcher says the app did not answer within 60 seconds, open `ClearPathPayroll-startup.log` in the extracted folder and send the error text back with your feedback.
+
 ## Seed Demo Data
 
 1. Start the app.

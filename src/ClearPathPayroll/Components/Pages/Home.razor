@@ -1,19 +1,66 @@
-﻿@page "/"
+@page "/"
 
-<PageTitle>ClearPath Payroll</PageTitle>
+<PageTitle>ClearPath Payroll Local Demo</PageTitle>
 
-<h1>Welcome to ClearPath Payroll</h1>
+<div class="container-fluid py-4">
+    <div class="alert alert-warning">
+        <strong>Local demo only.</strong> Do not use for real payroll. Do not enter real SSNs, bank account numbers, EINs, API keys, or live payroll data. No real ACH or tax filing is enabled.
+    </div>
 
-<p>Your SaaS solution for streamlined payroll management.</p>
+    <section class="mb-4">
+        <h1>ClearPath Payroll Local Demo</h1>
+        <p class="lead">Start here to review the demo with fake data, guided help, and a manual testing checklist.</p>
+        <div class="d-flex flex-wrap gap-2">
+            <a class="btn btn-primary" href="/help?article=getting-started-local-demo">Start with Help</a>
+            <a class="btn btn-success" href="/demo/seed-data">Create Demo Data</a>
+            <a class="btn btn-outline-primary" href="/prototype-test-checklist">Open Prototype Checklist</a>
+        </div>
+    </section>
 
-<p>
-    <a class="btn btn-primary" href="/help?article=getting-started-local-demo">Open Help Center</a>
-</p>
+    <section class="row g-3 mb-4">
+        <div class="col-lg-3 col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h2 class="h5">1. Set Up Demo Data</h2>
+                    <p>Create fake company, employee, pay schedule, and payroll records.</p>
+                    <a href="/demo/seed-data" class="btn btn-sm btn-outline-primary">Open Demo Data</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h2 class="h5">2. Review Setup</h2>
+                    <p>Check employer, employee, pay schedule, and optional field setup.</p>
+                    <a href="/setup/employer" class="btn btn-sm btn-outline-primary">Open Employer Setup</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h2 class="h5">3. Run Payroll</h2>
+                    <p>Create a draft payroll run, calculate checks, preview, and approve.</p>
+                    <a href="/payroll/create" class="btn btn-sm btn-outline-primary">Create Payroll Run</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h2 class="h5">4. Review Reports</h2>
+                    <p>Open payroll register, tax liability report, pay stubs, and exports.</p>
+                    <a href="/reports/payroll-register" class="btn btn-sm btn-outline-primary">Open Payroll Register</a>
+                </div>
+            </div>
+        </div>
+    </section>
 
-<p>Features coming soon:</p>
-<ul>
-    <li>Company and Employee Setup</li>
-    <li>Payroll Calculation</li>
-    <li>Tax Integration</li>
-    <li>Direct Deposit Processing</li>
-</ul>
+    <section class="card">
+        <div class="card-body">
+            <h2 class="h4">Need help?</h2>
+            <p>Use the Help Center for plain-language tester instructions and links to the manual test packet and feedback forms.</p>
+            <a class="btn btn-outline-secondary" href="/help">Open Help Center</a>
+        </div>
+    </section>
+</div>

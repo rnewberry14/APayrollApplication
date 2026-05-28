@@ -31,6 +31,22 @@ if exist "App_Data" (
     echo No App_Data folder was found. Nothing was reset.
 )
 
+if exist "ClearPathPayroll.exe" (
+    set ASPNETCORE_ENVIRONMENT=Development
+    set DOTNET_ENVIRONMENT=Development
+    set PrototypeMode__Enabled=true
+    set PrototypeMode__LocalDbDatabaseName=ClearPathPayroll.TesterPackage.LocalDemo
+    set LimitedLiabilityMode__Enabled=true
+    set LimitedLiabilityMode__LocalDatabaseProvider=SQLite
+    set LimitedLiabilityMode__LocalDatabaseName=ClearPathPayroll.TesterPackage.LocalDemo
+    set LimitedLiabilityMode__AllowExternalTaxApiLookup=false
+    set LimitedLiabilityMode__AllowRealAchSubmission=false
+    set LimitedLiabilityMode__AllowRealTaxFiling=false
+    set LimitedLiabilityMode__AllowTelemetry=false
+    echo Resetting the local demo database used by this tester package...
+    "ClearPathPayroll.exe" --reset-demo-data
+)
+
 echo.
 echo Start the app again, then open /demo/seed-data and click Create Demo Data.
 pause
